@@ -267,6 +267,32 @@ export async function changeExpense(db: Db, id: string, set: Loose, fullEntry: E
   });
 }
 
+/**
+ * Put a deleted receipt back as `card_expense_deletions` kept it (2026-11-24: a cleanup deleted rows it shouldn't have).
+ * The stored copy is JSON, so its dates are read back as dates; a "restored" line is added to its history and its
+ * deletion record is removed (so a later delete can save it again). Null when an expense with that id is already there.
+ */
+export async function restoreExpenseDoc(db: Db, stored: Loose, note: string, by: string): Promise<Loose | null> {
+  return db.transaction(async tx => {
+    const id = lower(String(stored._id));
+    const [taken] = await tx.select({ id: cardExpenses.id }).from(cardExpenses).where(eq(cardExpenses.id, id));
+    if (taken) return null;
+    const at = (v: unknown) => (typeof v === 'string' || v instanceof Date ? new Date(v as string) : v);
+    const obj = (v: unknown) => (v && typeof v === 'object' ? { ...(v as Loose), at: at((v as Loose).at) } : v);
+    const history = ((stored.history as Loose[] | undefined) ?? []).map(h => ({ ...h, at: at(h.at) }));
+    history.push({ at: new Date(), by, action: 'restored', changes: note });
+    const doc = {
+      ...stored, createdAt: at(stored.createdAt), updatedAt: new Date(), voidedAt: at(stored.voidedAt) ?? null,
+      approval: obj(stored.approval), sentBack: obj(stored.sentBack), history
+    };
+    const built = await rowsFor(tx, doc);
+    await tx.insert(cardExpenses).values(built.expense);
+    if (built.history.length) await tx.insert(cardExpenseHistory).values(built.history);
+    await tx.delete(cardExpenseDeletions).where(eq(cardExpenseDeletions.expenseId, id));
+    return (await findExpense(tx as unknown as Db, id))!;
+  });
+}
+
 /** Delete an expense for good: its whole record is saved to card_expense_deletions first, in the same transaction. Null if it is gone. */
 export async function deleteExpense(db: Db, id: string, by: string, reason: string): Promise<Loose | null> {
   return db.transaction(async tx => {

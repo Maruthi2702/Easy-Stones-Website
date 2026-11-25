@@ -13,7 +13,7 @@
 import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import { cardStatementLines as lines, cardStatementImports as imports } from '../schema/cardStatements.ts';
 import { cardExpenses, cardExpenseHistory, cardExpenseDeletions } from '../schema/cardsSuppliers.ts';
-import { findExpense } from '../cardReceipts/postgres.ts';
+import { findExpense, restoreExpenseDoc } from '../cardReceipts/postgres.ts';
 import type { Db } from '../copy/plan.ts';
 
 export interface PurgePlan {
@@ -176,4 +176,45 @@ export async function applyPrune(db: Db, keep: string[], reason: string, by = 's
     }
     return plan;
   });
+}
+
+/**
+ * Bringing back receipts a cleanup deleted (2026-11-24): the ones `applyPrune` saved to `card_expense_deletions`
+ * (deleted by 'script', reason "Cleanup 2026-11-24…"), limited to one status. Each is put back as it was with a
+ * "restored" history line, and a statement line named in its first history line ("… charge <reference>") that
+ * nothing points at is pointed at it again, so the next check doesn't make a second row for the charge.
+ */
+export const CLEANUP_REASON = 'Cleanup 2026-11-24';
+
+type Stored = Record<string, any>;
+
+export async function planRestore(db: Db, status: string) {
+  const rows = await db.select().from(cardExpenseDeletions)
+    .where(and(eq(cardExpenseDeletions.deletedBy, 'script'), sql`${cardExpenseDeletions.reason} like ${CLEANUP_REASON + '%'}`));
+  return rows.filter(r => (r.expense as Stored).status === status).map(r => {
+    const e = r.expense as Stored;
+    return {
+      id: r.expenseId, holderName: String(e.holderName ?? ''), merchant: String(e.merchant ?? ''), day: String(e.date ?? ''), cents: Number(e.cents ?? 0),
+      status: String(e.status), createdBy: String(e.createdBy ?? ''), hasReceipt: Boolean(e.receiptUrl), expense: e
+    };
+  });
+}
+
+export async function applyRestore(db: Db, status: string, by = 'script') {
+  const found = await planRestore(db, status);
+  const done: { id: string; relinked: string }[] = [];
+  const skipped: string[] = [];
+  for (const f of found) {
+    const back = await restoreExpenseDoc(db, f.expense, 'Restored: a cleanup deleted it by mistake', by);
+    if (!back) { skipped.push(f.id); continue; }
+    const reference = /charge ([^\s)]+)/.exec(String(f.expense.history?.[0]?.changes ?? ''))?.[1] ?? '';
+    let relinked = '';
+    if (reference) {
+      const res = await db.update(lines).set({ expenseId: f.id, updatedAt: new Date() })
+        .where(and(eq(lines.reference, reference), sql`${lines.expenseId} is null`)).returning({ reference: lines.reference });
+      relinked = res[0]?.reference ?? '';
+    }
+    done.push({ id: f.id, relinked });
+  }
+  return { found, done, skipped };
 }

@@ -8,7 +8,7 @@ import { migrateDb } from '../client.ts';
 import type { Db } from '../copy/plan.ts';
 import { cardStatementLines as lines, cardStatementImports as imports } from '../schema/cardStatements.ts';
 import { cardExpenses, cardExpenseHistory, cardExpenseDeletions } from '../schema/cardsSuppliers.ts';
-import { planPurge, applyPurge, planOrphanMissingRows, applyOrphanMissingRows, planPrune, applyPrune, isKeptName } from './purge.ts';
+import { planPurge, applyPurge, planOrphanMissingRows, applyOrphanMissingRows, planPrune, applyPrune, isKeptName, planRestore, applyRestore } from './purge.ts';
 
 const hex = (n: number) => n.toString(16).padStart(24, '0');
 let client: PGlite, db: Db;
@@ -150,5 +150,25 @@ describe('receipts by anyone but the people to keep', () => {
     await applyPrune(db, ['krish', 'karunakar'], 'cleanup', 'script', 'delete', 'missing');
     expect((await db.select().from(cardExpenses)).map(e => e.id)).toContain(hex(20));
     expect((await db.select().from(cardExpenses)).map(e => e.id)).not.toContain(hex(21));
+  });
+
+  it('puts back what a cleanup deleted, as it was, and links its charge again', async () => {
+    await db.insert(cardExpenseHistory).values([{ expenseId: hex(20), position: 0, at: new Date('2026-11-05T10:00:00Z'), by: 'Krish', action: 'added', changes: 'Missing receipt: Amex charge on-20' }]);
+    const before = (await db.select().from(cardExpenses).where(eq(cardExpenses.id, hex(20))))[0];
+    await applyPrune(db, ['krish'], 'Cleanup 2026-11-24: made by krish, not approved', 'script', 'delete');
+    expect((await db.select().from(lines).where(eq(lines.reference, 'on-20')))[0].expenseId).toBeNull();
+    expect((await planRestore(db, 'missing')).map(r => r.id)).toEqual([]);
+    const plan = await planRestore(db, 'waiting');
+    expect(plan.map(r => r.id)).toEqual([hex(20)]);
+    const done = await applyRestore(db, 'waiting');
+    expect(done.done).toEqual([{ id: hex(20), relinked: 'on-20' }]);
+    const after = (await db.select().from(cardExpenses).where(eq(cardExpenses.id, hex(20))))[0];
+    expect(after).toMatchObject({ cents: before.cents, status: 'waiting', createdBy: 'Krish', day: before.day });
+    expect(after.createdAt.getTime()).toBe(before.createdAt.getTime());
+    const hist = await db.select().from(cardExpenseHistory).where(eq(cardExpenseHistory.expenseId, hex(20)));
+    expect(hist.map(h => h.action)).toEqual(['added', 'restored']);
+    expect((await db.select().from(lines).where(eq(lines.reference, 'on-20')))[0].expenseId).toBe(hex(20));
+    expect(await db.select().from(cardExpenseDeletions).where(eq(cardExpenseDeletions.expenseId, hex(20)))).toHaveLength(0);
+    expect((await applyRestore(db, 'waiting')).found).toEqual([]);
   });
 });
