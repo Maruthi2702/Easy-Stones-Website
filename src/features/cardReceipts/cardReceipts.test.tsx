@@ -96,7 +96,7 @@ const settle = async () => { for (let i = 0; i < 8; i++) await act(async () => {
 const show = async (permissions: string[]) => { render(<CardReceiptsPage currentUser={{ _id: 'u1', displayName: 'Maruthi Ponugupati', permissions }} />); await settle(); };
 const text = () => document.body.textContent || '';
 
-beforeEach(() => { fake.card = true; fake.posted = []; fake.asked = []; fake.waiting = [WAITING_LOST]; fake.conflict = false; fake.todo = null; fake.near = { charge: null, receipts: [] }; Element.prototype.scrollIntoView = () => {}; });
+beforeEach(() => { fake.card = true; fake.posted = []; fake.asked = []; fake.waiting = [WAITING_LOST]; fake.conflict = false; fake.todo = null; fake.near = { charge: null, receipts: [] }; Element.prototype.scrollIntoView = () => {}; localStorage.clear(); sessionStorage.clear(); });
 afterEach(cleanup);
 
 /** The one round Filters button (every screen size): opens the panel Queue, Card, Status, Statement, Category and People live in. */
@@ -182,6 +182,23 @@ describe('the Credit Card Receipts page', () => {
     expect(text()).toContain('Nothing matches');
     expect(screen.getByRole('button', { name: /^Filters/ }).className).toContain('is-active');
     fireEvent.click(screen.getByRole('button', { name: 'Clear all' }));
+    expect(screen.getByText('Staples')).toBeTruthy();
+  });
+
+  it('keeps the filters after a refresh until they are changed (Clear all forgets them)', async () => {
+    await show(['view_all_card_receipts']);
+    openFilters();
+    fireEvent.click(screen.getByRole('radio', { name: /Encore/ }));
+    expect(text()).toContain('Nothing matches');
+    // A refresh: the page mounts again and reads what was kept.
+    cleanup();
+    await show(['view_all_card_receipts']);
+    expect(text()).toContain('Nothing matches');
+    expect(screen.getByRole('button', { name: /^Filters/ }).className).toContain('is-active');
+    openFilters();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all' }));
+    cleanup();
+    await show(['view_all_card_receipts']);
     expect(screen.getByText('Staples')).toBeTruthy();
   });
 

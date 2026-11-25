@@ -14,6 +14,8 @@ import type { PeopleFilter } from './PeopleField';
  *   'team'. "Clear filter" goes back to it.
  * - `storageKey`: remember the pick for the browser session (per person —
  *   include the user's id in the key). Omit to forget on leaving.
+ * - `storage`: 'local' keeps it on this device until changed (Credit Card
+ *   Receipts); 'session' (the default, the Dashboard) forgets it with the tab.
  * - A remembered or earlier pick the viewer can no longer see is dropped
  *   (`sanitizePeople`).
  */
@@ -22,6 +24,7 @@ export type UsePeopleFilterArgs = {
     me: string;
     start?: 'me' | 'team';
     storageKey?: string;
+    storage?: 'session' | 'local';
     /** Other screens: the field's name, what [] is called, and no "Me" row. */
     label?: string;
     teamLabel?: string;
@@ -30,19 +33,20 @@ export type UsePeopleFilterArgs = {
     onPick?: (people: string[]) => void;
 };
 
-const readStored = (key?: string): string[] | null => {
+const store = (kind: 'session' | 'local') => (kind === 'local' ? localStorage : sessionStorage);
+const readStored = (key: string | undefined, kind: 'session' | 'local'): string[] | null => {
     if (!key) return null;
-    try { return parseStoredPeople(sessionStorage.getItem(key)); } catch { return null; }
+    try { return parseStoredPeople(store(kind).getItem(key)); } catch { return null; }
 };
 
-export default function usePeopleFilter({ options, me, start = 'me', storageKey, label, teamLabel, hideMe, onPick }: UsePeopleFilterArgs) {
+export default function usePeopleFilter({ options, me, start = 'me', storageKey, storage = 'session', label, teamLabel, hideMe, onPick }: UsePeopleFilterArgs) {
     const home = useMemo(() => (start === 'me' ? peopleDefault(me) : MY_TEAM), [start, me]);
-    const [picked, setPicked] = useState<string[] | null>(() => readStored(storageKey));
+    const [picked, setPicked] = useState<string[] | null>(() => readStored(storageKey, storage));
     // A different person or key (sign-out / sign-in): read theirs, not the last one's.
     const [keyFor, setKeyFor] = useState(storageKey);
     if (keyFor !== storageKey) {
         setKeyFor(storageKey);
-        setPicked(readStored(storageKey));
+        setPicked(readStored(storageKey, storage));
     }
 
     const value = useMemo(() => sanitizePeople(picked ?? home, options, me), [picked, home, options, me]);
@@ -51,10 +55,10 @@ export default function usePeopleFilter({ options, me, start = 'me', storageKey,
     const setValue = useCallback((people: string[]) => {
         setPicked(people);
         if (storageKey) {
-            try { sessionStorage.setItem(storageKey, JSON.stringify(people)); } catch { /* private mode: not remembered */ }
+            try { store(storage).setItem(storageKey, JSON.stringify(people)); } catch { /* private mode: not remembered */ }
         }
         onPick?.(people);
-    }, [storageKey, onPick]);
+    }, [storageKey, storage, onPick]);
 
     const onToggle = (id: string) => setValue(togglePerson(value, id, me, teamIds));
     const onBranch = (ids: string[], on: boolean) => setValue(on ? tickBranch(value, ids) : untickBranch(value, ids, me, teamIds));

@@ -16,6 +16,8 @@ import { useCardReceipts } from './useCardReceipts';
 import { getAddForHolders, listAllExpenses, listMonthForExport } from './cardReceiptsApi';
 import { exportFileName, exportScope, type ExportChoice } from '../../utils/cardReceiptsExport';
 import { writeExcel, writePdf } from './exportFiles';
+import { useSavedFilters } from './useSavedFilters';
+import { savedPeopleKey } from './savedFilters';
 import { NO_FILTERS, STATEMENT_FILTERS, TODO_SHOWN, WAIT_FILTERS, byWaitFilter, holderPeople, remindable, statusLine, visibleExpenses, waitCounts, type ReceiptFilters, type WaitFilter } from './cardReceiptsView';
 import ExpenseList, { type ListSelection } from './components/ExpenseList';
 import ExpenseDrawer from './components/ExpenseDrawer';
@@ -83,8 +85,9 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   const canAdd = (canUse && Boolean(me?.card)) || (canAddForOthers && addHolders.length > 0);
   // Someone who only runs the Amex check opens on it.
   const [tab, setTab] = useState<Tab>(() => ([CARD_RECEIPTS.USE, CARD_RECEIPTS.VIEW_ALL, CARD_RECEIPTS.APPROVE].some((p) => can(currentUser, p)) || !can(currentUser, CARD_RECEIPTS.STATEMENTS) ? 'expenses' : 'statements'));
-  const [filters, setFilters] = useState<ReceiptFilters>(NO_FILTERS);
-  const [waitFilter, setWaitFilter] = useState<WaitFilter>('all');
+  // Filters stay until the person changes them, a refresh included (owner, 2026-11-24): kept per person on this device.
+  const viewerId = String(me?.user.id || currentUser?.id || currentUser?._id || '');
+  const { filters, setFilters, waitFilter, setWaitFilter } = useSavedFilters(viewerId);
   const [openId, setOpenId] = useState<string | null>(null);
   const [open, setOpen] = useState<Open>(null);
   const [toast, setToast] = useState('');
@@ -100,12 +103,11 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   const source = tab === 'waiting' ? byWaitFilter(data.waiting, waitFilter) : data.expenses;
   // One People filter for cardholder and branch (the shared one): only who this login may see.
   const staff = useStaffList();
-  const viewerId = String(me?.user.id || currentUser?.id || currentUser?._id || '');
   const people = useMemo(() => holderPeople(source, staff, currentUser, data.holders), [source, staff, currentUser, data.holders]);
   // "Me" only when the viewer is one of the cardholders listed.
   const meId = people.some((p) => p.value === viewerId) ? viewerId : '';
   const peopleFilter = usePeopleFilter({
-    options: people, me: meId, start: 'team', label: 'Cardholder',
+    options: people, me: meId, start: 'team', label: 'Cardholder', storageKey: savedPeopleKey(viewerId) || undefined, storage: 'local',
     teamLabel: data.teamOnly ? 'My team' : 'All cardholders', hideMe: !meId
   });
   const receiptFilters = useMemo(() => ({ ...filters, people: peopleFilter.value }), [filters, peopleFilter.value]);
