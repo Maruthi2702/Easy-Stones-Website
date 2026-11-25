@@ -101,7 +101,7 @@ afterAll(async () => { await t?.close(); });
 
 type Api = ReturnType<typeof apiFor>;
 /** `onStatement` (which expenses a bank statement line answers) reads Postgres-only tables, so it isn't compared. */
-const withoutStatement = (v: unknown): unknown => Array.isArray(v) ? v.map(withoutStatement)
+const withoutStatement = (v: Loose): Loose => Array.isArray(v) ? v.map(withoutStatement)
   : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([k]) => k !== 'onStatement').map(([k, x]) => [k, withoutStatement(x)])) : v;
 const apiFor = (user: Loose) => {
   const h = (r: request.Test) => r.set('x-test-user', JSON.stringify(user));
