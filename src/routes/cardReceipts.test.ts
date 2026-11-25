@@ -237,12 +237,13 @@ describe('saving a receipt', () => {
       expect(saved.history.length).toBeGreaterThanOrEqual(3);
     });
 
-    it('can\u2019t be approved by the person who added it, but by someone else', async () => {
+    // Owner, 2026-11-23: Accounting or an Admin who added a receipt for someone may still approve it (receiptApproval.ts's
+    // `addedItAndMayNotJudge`); anyone else who added it may not \u2014 that case is in receiptApproval.test.ts.
+    it('is still approvable by Accounting who added it, and by someone else', async () => {
       const res = await as(ADDER).post('/expenses', receipt({ onBehalfOf: ids.rep })).expect(201);
       const id = res.body.expense.id;
       expect(res.body.expense).toMatchObject({ addedByName: 'Ann Count', addedById: ids.acct });
-      expect(res.body.expense.actions.approve).toBe(null);
-      await as(ADDER).post(`/expenses/${id}/approve`, {}).expect(res2 => { if (res2.status < 400) throw new Error('adder approved'); });
+      expect(res.body.expense.actions.approve).toBe('accounting');
       const other = { ...ADMIN1, permissions: [...ADMIN1.permissions] };
       const ok = await as(other).post(`/expenses/${id}/approve`, {});
       expect(ok.status).toBeLessThan(400);
