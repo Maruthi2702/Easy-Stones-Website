@@ -3,7 +3,7 @@ import { CARD_RECEIPTS } from './cardReceipts.ts';
 import {
   needsSecondApproval, holderKindOf, isBranchManagerOf, branchManagersOf, canFill, slotFor, fullyApproved, canSendBack, canAsk,
   canWithdrawAsk, canAnswer, canReopen, canFillDetails, mayBeAsked, slotForAnswer, waitingReason, stillNeeded, approvalChips,
-  approveProblem, approverAs, type ApprovalState, type ApprovalViewer
+  approveProblem, approverAs, mayViewHolderReceipts, type ApprovalState, type ApprovalViewer
 } from './receiptApproval.ts';
 
 const A = [CARD_RECEIPTS.APPROVE];
@@ -203,6 +203,21 @@ describe('send back, reopen, an Admin’s receipt', () => {
     const s = { ...exp(), lostReason: 'Lost it', receiptUrl: '' };
     expect(approveProblem(s, '')).toMatch(/comment/);
     expect(approveProblem(s, 'ok')).toBe('');
+  });
+});
+
+describe('who sees an Admin’s receipts', () => {
+  it('Accounting, Admins and the Admin themselves — never a director or manager', () => {
+    expect(mayViewHolderReceipts(acct, 'admin', 'adm')).toBe(true);
+    expect(mayViewHolderReceipts(admin2, 'admin', 'adm')).toBe(true);
+    expect(mayViewHolderReceipts(admin, 'admin', 'adm')).toBe(true);
+    expect(mayViewHolderReceipts(allDir, 'admin', 'adm')).toBe(false);
+    expect(mayViewHolderReceipts(seaDir, 'Admin', 'adm')).toBe(false);
+    expect(mayViewHolderReceipts(seaMgr, 'admin', 'adm')).toBe(false);
+    expect(mayViewHolderReceipts(null, 'admin', 'adm')).toBe(false);
+  });
+  it('changes nothing for anyone else’s receipts', () => {
+    for (const role of ['sales_rep', 'manager', 'director', 'accounting', '']) expect(mayViewHolderReceipts(seaDir, role, 'x')).toBe(true);
   });
 });
 

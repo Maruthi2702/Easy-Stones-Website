@@ -48,6 +48,16 @@ export type HolderKind = 'staff' | 'manager' | 'accounting' | 'admin';
 export const holderKindOf = (role: unknown): HolderKind =>
   isAdminRole(role) ? 'admin' : isAccountingRole(role) ? 'accounting' : isManagerRole(role) ? 'manager' : 'staff';
 
+/**
+ * An Admin's own receipts are seen only by Accounting and Admins — the only people who approve them — and by the
+ * Admin themselves (owner, 2026-11-25: "why are we showing admin receipts for directors"). View all, View branch
+ * and a branch manager's Approve never show them to a director, manager or anyone else. Server-side only: every
+ * read of expenses (the list, Export, the Cardholder filter, the receipt file) goes through this.
+ */
+export const mayViewHolderReceipts = (
+  viewer: Pick<ApprovalViewer, 'id' | 'role'> | null | undefined, holderRole: unknown, holderId: unknown
+) => holderKindOf(holderRole) !== 'admin' || Boolean(viewer && (isAccountingSide(viewer.role) || String(viewer.id) === String(holderId)));
+
 /** Which approval a decision gave. `accounting` / `admin` on the Accounting approval; `manager` / `admin` on the second. */
 export type ApproverAs = 'accounting' | 'admin' | 'manager';
 export type Decision = { by: string; byName: string; at: string | Date; comment: string; as?: ApproverAs | null };

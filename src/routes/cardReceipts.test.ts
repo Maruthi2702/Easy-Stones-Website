@@ -347,6 +347,23 @@ describe('saving a receipt', () => {
 });
 
 describe('who sees what', () => {
+  it('never shows an Admin’s own receipts to a director with View all or View branch — only Accounting and Admins', async () => {
+    await CompanyCard.create({ userId: ids.admin1, label: 'ADAM11111', lastDigits: '11111' });
+    await as(REP).post('/expenses', receipt()).expect(201);
+    await as(ADMIN1).post('/expenses', receipt({ merchant: 'Costco', total: '412.00', category: 'office_supplies' })).expect(201);
+    const merchantsFor = async (u: Loose, url = '/expenses?scope=all&month=2026-10') => (await as(u).get(url).expect(200)).body.expenses.map((e: Loose) => e.merchant).sort();
+    const viewAllDir = { ...DIRECTOR, permissions: [...DIRECTOR.permissions, 'view_all_card_receipts', 'export_card_receipts'] };
+    const branchDir = { ...DIRECTOR, assignedLocations: ['*'], permissions: [...DIRECTOR.permissions, 'view_branch_card_receipts'] };
+    expect(await merchantsFor(viewAllDir)).toEqual(["McDonald's, Kent"]);
+    expect(await merchantsFor(branchDir)).toEqual(["McDonald's, Kent"]);
+    expect(await merchantsFor(viewAllDir, '/expenses/export?month=2026-10')).toEqual(["McDonald's, Kent"]);
+    const holders = (await as(viewAllDir).get('/cardholders').expect(200)).body.holders.map((h: Loose) => h.name);
+    expect(holders).not.toContain('Ada Min');
+    expect(await merchantsFor(ACCOUNTING)).toEqual(['Costco', "McDonald's, Kent"]);
+    expect(await merchantsFor({ ...ADMIN2, permissions: [...ADMIN2.permissions, 'view_all_card_receipts'] })).toEqual(['Costco', "McDonald's, Kent"]);
+    expect(await merchantsFor(ADMIN1, '/expenses?month=2026-10')).toEqual(['Costco']);
+  });
+
   it('shows people their own, view-all everyone’s, and approvers what waits for them', async () => {
     await as(REP).post('/expenses', receipt()).expect(201);
     await as(MANAGER).post('/expenses', receipt({ merchant: 'Staples', total: '86.42', category: 'office_supplies' })).expect(201);

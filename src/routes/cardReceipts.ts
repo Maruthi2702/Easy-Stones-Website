@@ -11,7 +11,7 @@ import { StaleExpenseError, RepeatExpenseError, EXPENSE_LIST_CAP, isChargePlaceh
 import {
   type ApprovalState, type ApprovalViewer, type Slot, askOpen, slotFor, approverAs, fullyApproved, canSendBack, canAsk, canWithdrawAsk,
   canAnswer, canReopen, canFillDetails, mayBeAsked, slotForAnswer, waitingReason, approvalChips, secondNeeded, approveProblem,
-  isAccountingSide, isBranchManagerOf, isManagerRole, isAdminRole, holderKindOf
+  isAccountingSide, isBranchManagerOf, isManagerRole, isAdminRole, holderKindOf, mayViewHolderReceipts
 } from '../utils/receiptApproval.ts';
 import { newId } from '../db/ids.ts';
 import { isBatchMarker, batchNote, type BatchMarker } from '../utils/receiptBatch.ts';
@@ -411,11 +411,12 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       }
       const [cards, people] = await Promise.all([
         db.listCards(),
-        staffData.findUsers({}, { select: 'username displayName isActive', sort: { displayName: 1 } })
+        staffData.findUsers({}, { select: 'username displayName isActive role', sort: { displayName: 1 } })
       ]);
       const byId = new Map(people.map((p) => [String(p._id), p]));
+      const viewer = approvalViewerOf(req);
       const ids = [...new Set(cards.map((c) => String(c.userId || '')).filter(Boolean))]
-        .filter((id) => team === ALL_PEOPLE || team.has(id));
+        .filter((id) => (team === ALL_PEOPLE || team.has(id)) && mayViewHolderReceipts(viewer, byId.get(id)?.role, id));
       res.json({ holders: ids.flatMap((id) => {
         const person = byId.get(id);
         return person && person.username !== 'admin' ? [{ id, name: nameOf(person), active: person.isActive !== false }] : [];
@@ -576,7 +577,8 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
         }
       }
       const rows = await db.listExpenses(filter);
-      let views = await viewsOf(rows, viewer);
+      // An Admin's own receipts only reach Accounting and Admins, whatever View all / View branch say.
+      let views = (await viewsOf(rows, viewer)).filter((v) => mayViewHolderReceipts(viewer, v.holderRole, v.userId));
       // Waiting for me: what the rules say waits for the caller (an approval theirs to give, or a question to them).
       if (scope === 'waiting') views = views.filter((v) => v.waitingReason != null);
       res.json({ expenses: views, ...(rows.length >= EXPENSE_LIST_CAP ? { truncated: true } : {}) });
@@ -607,7 +609,8 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const filter: db.ExpenseFilter = month ? { kind: 'month', month, ...people } : { kind: 'all', ...people };
       const rows = await db.listExpenses(filter);
       console.log(`[card-receipts] export by ${me}: ${month || 'all months'}${bank ? ` · ${bank}` : ''} · ${rows.length} expenses`);
-      const views = (await viewsOf(rows, approvalViewerOf(req))).filter((v) => onBank(v, bank));
+      const viewer = approvalViewerOf(req);
+      const views = (await viewsOf(rows, viewer)).filter((v) => onBank(v, bank) && mayViewHolderReceipts(viewer, v.holderRole, v.userId));
       res.json({ expenses: views, ...(rows.length >= EXPENSE_LIST_CAP ? { truncated: true } : {}) });
     } catch (error) {
       console.error('[card-receipts] export failed:', error);
@@ -1017,6 +1020,9 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
   /** Whether the caller may see this expense's receipt: the same people who may see the expense. */
   const mayViewReceipt = async (req: Request, e: Loose) => {
     if (String(e.userId) === userIdOf(req)) return true;
+    // An Admin's own receipt: Accounting and Admins only (a director with View all, or the branch's manager, never).
+    const holderRole = (await holderRolesOf([e])).get(String(e.userId)) ?? '';
+    if (!mayViewHolderReceipts(approvalViewerOf(req), holderRole, e.userId)) return false;
     if (has(req, CARD_RECEIPTS.VIEW_ALL)) return true;
     if (has(req, CARD_RECEIPTS.VIEW_BRANCH)) {
       const team = await teamOfRequest(req);
