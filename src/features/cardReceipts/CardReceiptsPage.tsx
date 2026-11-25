@@ -260,9 +260,6 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
     : tab === 'cards' || tab === 'statements' ? ''
     : `${periodName} · ${data.viewAll ? (data.teamOnly ? 'Your team' : 'All cardholders') : me?.card ? `${me.card.label}${me.user.location ? ` · ${me.user.location}` : ''}` : 'Your receipts'}`;
   const titleCount = tab === 'waiting' ? data.waiting.length : tab === 'statements' ? statementCount : tab === 'cards' ? null : rows.length;
-  const addButton = canAdd && !isPhone && (tab === 'expenses' || tab === 'waiting') ? (
-    <button type="button" className="ccr-btn gold" aria-label="Add receipt" onClick={() => setOpen({ kind: 'choose' })}><Camera size={16} aria-hidden="true" /> Add receipt</button>
-  ) : null;
 
   return (
     <div className="ccr">
@@ -335,7 +332,6 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
                 </div>
               </LocationFilter> : null}
               {exportItems.length || bulkItems.length ? <RowMenu label="More" items={[...exportItems, ...bulkItems.map((it, i) => (i === 0 && exportItems.length ? { ...it, divider: true } : it))]} /> : null}
-              {addButton}
             </div>
           ) : null}
         </div>
@@ -473,7 +469,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
         )}
       </div>
 
-      {canAdd && !addButton ? (
+      {canAdd ? (
         <button type="button" className="ccr-fab" aria-label="Add receipt" title="Add receipt" onClick={() => setOpen({ kind: 'choose' })}>
           <Camera size={24} strokeWidth={2.2} aria-hidden="true" />
         </button>

@@ -1655,8 +1655,8 @@ tab. A login with the Amex check but **no Cards tab** (`canCards` false) still g
 artifact **Statement row colours**, https://claude.ai/artifact/GSbdExUZTArcH7EgsDWQjP, board C — the owner's comments on it set every
 rule here). Every tab uses the Customers spacing (`CustomerList.css`): the title 22px / 750 with a gold count (`.ccr-hcount`), 44px tabs
 with icons and Customers' count pill, a 42px table header and 60px rows (`.ccr-table th/td`), a 44px checkbox and 48px ⋯ column, 12px
-between sections. A computer gets **Add receipt** as the gold header button (Expenses / Waiting for me; the round camera stays on a phone
-and on the other tabs). **Statements:** the bank is a **Bank** dropdown (Amex / Encore, still one at a time, remembered), beside
+between sections. **Add receipt is the round gold camera button, bottom right, on every screen size** (a gold header button was tried on a computer
+2026-11-24 and taken back the same day, owner: the icon is what they want). **Statements:** the bank is a **Bank** dropdown (Amex / Encore, still one at a time, remembered), beside
 **Status** and **Cardholder** dropdowns on the tab row after the month (`statements/FilterMenu.tsx`, the Customers `.cl-dd` look; the
 panel portals them into the page's `ccr-tab-tools` and its search + **Upload statement** into the header's `ccr-tools`, so nothing floats
 outside the page); the tiles are gone. Columns (owner's order): **Date · Cardholder & card** (initial avatar, name, branch pill in the
