@@ -123,6 +123,21 @@ describe('the Credit Card Receipts page', () => {
     expect(screen.queryByLabelText('Add receipt')).toBeNull();
   });
 
+  it('a Missing receipt row is green too: it is made from a line on the bank report', async () => {
+    const before = EXPENSES.length;
+    EXPENSES.push(exp('m2', { merchant: 'SHELL', status: 'missing', receiptUrl: '', category: '', onStatement: true }),
+      exp('m3', { merchant: 'CHEVRON NOT KNOWN', status: 'missing', receiptUrl: '', category: '' }));
+    try {
+      await show(['view_all_card_receipts', 'export_card_receipts']);
+      const rowOf = (merchant: string) => [...document.querySelectorAll('.ccr-table tbody tr')].find((r) => r.textContent?.includes(merchant))!;
+      expect(rowOf('SHELL').className).toBe('is-ok');
+      expect(rowOf('SHELL').getAttribute('title')).toBe('On the bank report, receipt still to upload');
+      expect(rowOf('CHEVRON NOT KNOWN').className).toBe('');
+    } finally {
+      EXPENSES.length = before;
+    }
+  });
+
   it('colours each row by whether a bank statement line answers it, and filters by it', async () => {
     await show(['view_all_card_receipts', 'export_card_receipts']);
     const rowOf = (merchant: string) => [...document.querySelectorAll('.ccr-table tbody tr')].find((r) => r.textContent?.includes(merchant))!;

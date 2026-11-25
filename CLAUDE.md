@@ -1674,7 +1674,7 @@ panel are gone — **Queue** (approvers, Waiting for me), **Card**, **Status**, 
 (`components/FilterMenu.tsx`, shared with Statements; each choice carries its count given the others, **Clear all** appears once one
 narrows the list), and what the tiles held — each status's money and the month's total — sits in the pager's bar (`.ccr-pg-totals`).
 A **phone keeps the Filters panel**. Rows: Cardholder & card (avatar, branch pill), Status as the dot + word with the approvals / what's
-owed under it (`ExpenseStatus`), a Missing receipt row is plain (its red dot in Status stays). Dropped
+owed under it (`ExpenseStatus`), a Missing receipt row is green like any row on the report (its red dot in Status stays). Dropped
 `StatusTiles.tsx`. An empty list with a filter on says "Nothing matches", never "No receipts for <month>".
 
 **Expenses say whether a bank statement line answers them** (2026-11-24, owner: "show if they are matched with the Amex report or not in
@@ -1683,8 +1683,8 @@ expenses as well"). The server adds `onStatement` to every expense it sends (`vi
 (an upload matched to its charge, or the Missing receipt row made for it), **false** when none does and the expense is on an Amex / Encore
 card dated **2026-11-01 or later** (`MISSING_FROM`; the same start as the check), **null** otherwise (earlier days, another bank, or
 Credit Card Receipts still on MongoDB / the lookup failed — nothing is claimed). The row's background says it (`rowTone` in
-`ExpenseList.tsx`): **green** on the statement and **plain for everything
-else** — a Missing receipt row too (owner, 2026-11-24: green is the only row colour in the whole module) — not matched (owner, same day:
+`ExpenseList.tsx`): **green** on the statement — a Missing receipt row too, since it is made from a report line (owner, 2026-11-24: green is the only row colour; "missing receipt also, if matched with the report, has the green background") — and **plain for everything
+else** (a receipt not on a report yet, or not known) — not matched (owner, same day:
 "which are not matched don't keep any color", so the amber and its tag were removed) or not known; a hover `title` says what green means.
 A **Statement** dropdown (All / Matched / Not matched, with counts; a field in the phone's Filters panel too) filters them
 (`ReceiptFilters.statement`, `statementState`): **Matched is exactly the green rows; Not matched is everything else** (owner: "everything
