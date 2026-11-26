@@ -130,7 +130,7 @@ export default function ExpenseList({ rows, isPhone, categories, showHolder, sho
             ) : null}
             <th>Date</th>{showHolder ? <th>Cardholder &amp; card</th> : null}<th>Merchant</th><th className="ccr-col-wide">Category</th>
             <th className="ccr-num">Amount</th><th>Status</th><th className="ccr-col-wide">Receipt</th>
-            {rowActions ? <th className="ccr-act" aria-label="Actions" /> : null}
+            {rowActions ? <th className="ccr-rowmenu" aria-label="Actions" /> : null}
           </tr>
         </thead>
         <tbody>
@@ -164,7 +164,7 @@ export default function ExpenseList({ rows, isPhone, categories, showHolder, sho
                 <td><ExpenseStatus e={e} categories={categories} /></td>
                 <td className="ccr-col-wide"><Thumb e={e} /></td>
                 {rowActions ? (
-                  <td className="ccr-act" onClick={(ev) => ev.stopPropagation()}>
+                  <td className="ccr-rowmenu" onClick={(ev) => ev.stopPropagation()}>
                     {(() => { const items = rowActions(e); return items.length ? <RowMenu label={`Actions for ${e.merchant} ${formatMoney(e.cents)}`} items={items} /> : null; })()}
                   </td>
                 ) : null}

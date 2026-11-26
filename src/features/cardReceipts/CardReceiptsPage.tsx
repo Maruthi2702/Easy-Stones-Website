@@ -322,7 +322,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
 
   return (
     <div className="ccr">
-      <div className="ccr-page">
+      <div className="ccr-page ccr-page--wide">
         <div className="ccr-head">
           {sidebarToggle}
           <div className="ccr-ttl">
