@@ -725,8 +725,8 @@ body.light-theme-active .ccr-bank.is-encore { background: #f1e9ff; color: #5b21b
 .ccr-pr-st { font-size: 13.5px; font-weight: 700; line-height: 1.25; }
 .ccr-pr-st.is-ok { color: var(--ccr-ok); } .ccr-pr-st.is-wait { color: var(--ccr-wait); } .ccr-pr-st.is-miss { color: var(--ccr-miss); }
 .ccr-pr-st.is-back { color: var(--ccr-back); } .ccr-pr-st.is-draft { color: var(--ccr-draft); } .ccr-pr-st.is-none { color: var(--ccr-muted); font-weight: 600; }
-.ccr-pr-d { max-width: 100%; font-size: 12px; color: var(--ccr-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ccr-pr-main .ccr-pr-d { font-size: 13.5px; text-align: left; white-space: normal; }
+.ccr-pr-d { max-width: 100%; font-size: clamp(10px, 2.6vw, 12px); color: var(--ccr-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ccr-pr-main .ccr-pr-d { font-size: clamp(10px, 3.2vw, 13.5px); text-align: left; white-space: normal; }
 .ccr-pr-acts { grid-column: 1 / -1; display: flex; gap: 8px; }
 .ccr-pr-acts .ccr-btn { flex: 1; height: 44px; padding: 0 12px; }
 .ccr-pr-acts .ccr-btn.gold { flex: 1.3; }
