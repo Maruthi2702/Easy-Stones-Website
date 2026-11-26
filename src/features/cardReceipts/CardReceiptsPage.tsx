@@ -570,7 +570,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
             const saved = open.kind === 'edit' ? await data.edit(open.expense.id, body) : await data.add(body);
             setOpen(null);
             if (tab === 'expenses' && (data.range ? !inRange(saved.date, data.range.from, data.range.to) : monthOf(saved.date) !== data.month)) data.setMonth(monthOf(saved.date));
-            say(saved.status === 'waiting' ? 'Sent for approval' : 'Saved as a draft');
+            say(saved.status === 'waiting' ? 'Sent for approval' : 'Saved');
           }}
           onMerge={open.kind === 'add' ? async (savedId, body) => {
             const saved = await data.mergeOne(savedId, body);

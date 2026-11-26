@@ -24,21 +24,22 @@ export const isBatchMarker = (v: unknown): v is BatchMarker => {
 /** The line the receipt's history keeps. */
 export const batchNote = (m: BatchMarker) => `added in a batch (${m.n} of ${m.of})`;
 
-/** Where one receipt of the batch stands before Save all. `blocked` = needs a merchant, day or total before it can be saved even as a draft. */
-export type RowReadiness = 'ready' | 'draft' | 'blocked';
+/**
+ * Where one receipt of the batch stands before Save all. `incomplete` = lacks a category, type, customer or note; `blocked` =
+ * lacks a merchant, day or total too. Either way Save all leaves it unsaved and shows what's missing (no drafts, 2026-11-26).
+ */
+export type RowReadiness = 'ready' | 'incomplete' | 'blocked';
 export const rowReadiness = (check: { value?: unknown; missing: Record<string, unknown> }): RowReadiness =>
-  !check.value ? 'blocked' : Object.keys(check.missing).length === 0 ? 'ready' : 'draft';
+  !check.value ? 'blocked' : Object.keys(check.missing).length === 0 ? 'ready' : 'incomplete';
 
-/** What a finished batch says: "4 sent for approval · 1 saved as a draft · 2 replaced report rows". */
+/** What a finished batch says: "4 sent for approval · 2 replaced report rows". (An older saved receipt that stays as it was counts as sent.) */
 export function batchSummary(saved: { status: string; matchedMissing: boolean; /** It updated a receipt already saved instead of adding one. */ merged?: boolean }[], failed: number): string {
   const added = saved.filter((s) => !s.merged);
-  const sent = added.filter((s) => s.status === 'waiting').length;
-  const drafts = added.length - sent;
+  const sent = added.length;
   const matched = saved.filter((s) => s.matchedMissing).length;
   const merged = saved.length - added.length;
   return [
     sent ? `${sent} sent for approval` : '',
-    drafts ? `${drafts} saved as ${drafts === 1 ? 'a draft' : 'drafts'}` : '',
     merged ? `${merged} updated ${merged === 1 ? 'a saved receipt' : 'saved receipts'}` : '',
     matched ? `${matched} replaced ${matched === 1 ? 'a report row' : 'report rows'}` : '',
     failed ? `${failed} didn’t save` : ''

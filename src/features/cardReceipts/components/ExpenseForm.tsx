@@ -10,7 +10,7 @@ import { goToField } from '../../../components/shared/form/formFocus';
 import { useCustomerOptions } from '../../../api/customerOptions';
 import { compressImage, fileToBase64 } from '../../../utils/attachmentFiles';
 import { duplicatePhotoLine, receiptFileProblem } from '../../../utils/receiptFile';
-import { billMismatchLine, centsText, cleanExpense, defaultSubOf, fieldsOf, typedBillMismatch, type ExpenseInput, type ExpenseProblems, type RepeatInfo } from '../../../utils/cardReceipts';
+import { billMismatchLine, centsText, cleanExpense, defaultSubOf, fieldsOf, mayStayIncomplete, typedBillMismatch, type ExpenseInput, type ExpenseProblems, type RepeatInfo } from '../../../utils/cardReceipts';
 import { fillFromScan, scanLine, type ReceiptScan } from '../../../utils/receiptScan';
 import type { ExpenseBody, UploadOptions, UploadResult } from '../cardReceiptsApi';
 import { fingerprintOf } from '../receiptFingerprint';
@@ -79,9 +79,9 @@ export type ExpenseFormProps = {
  * the same window (BillDetailsEdit): merchant, date, total, subtotal, fees, tax, tip.
  *
  * The photo or PDF uploads the moment it's picked; Save sends its address.
- * Date, merchant and total are needed to save at all; until the receipt (or a
- * lost-receipt reason), the category and the category's own fields are there
- * it saves as a draft, and once they are it goes to the approver. The same day
+ * There are no drafts (owner, 2026-11-26): the receipt (or a lost-receipt reason),
+ * date, merchant, total, category and the category's own fields are all needed, and
+ * a save that lacks any shows what's missing and goes nowhere. The same day
  * and total already saved asks "Save anyway?" first. After an upload, `scan`
  * reads the receipt and fills the fields that are still empty
  * (src/utils/receiptScan.ts); the card says which, so they get checked, and
@@ -135,8 +135,10 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
   const fields = fieldsOf(category, values.subcategory);
   const body: ExpenseBody = { ...values, ...(choosing ? { cardId } : {}), ...(behalf ? { onBehalfOf: holderId } : {}), receiptUrl: lost ? '' : values.receiptUrl, lostReason: lost ? values.lostReason : '' };
   const check = cleanExpense(body, { today, categories: offered, currentSubcategory: start.subcategory, currentLostReason: expense?.lostReason || '' });
-  const problems: ExpenseProblems = { ...check.problems, ...serverProblems };
-  const complete = Object.keys(check.missing).length === 0;
+  // No drafts (owner, 2026-11-26): what's missing blocks the save like any other problem, except on a statement row or
+  // an Admin's charge that needs no receipt (`mayStayIncomplete`, the server's rule too).
+  const lacking = expense && mayStayIncomplete(expense) ? {} : check.missing;
+  const problems: ExpenseProblems = { ...lacking, ...check.problems, ...serverProblems };
 
   // Upload receipt: a receipt is on it and nobody has confirmed (or picked) the category yet.
   const awaitingConfirm = confirmCategory && !lost && Boolean(values.receiptUrl) && !categoryConfirmed;
@@ -238,7 +240,10 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
   const submit = async (confirmRepeat = false) => {
     setSubmitted(true);
     if (forOthers && !holderId) { setServerError('Choose whose receipt this is.'); return; }
-    const first = (Object.keys(LABELS) as (keyof typeof LABELS)[]).find((k) => problems[k as keyof ExpenseProblems]);
+    // What was typed wrong comes first (the bill details), then what is still missing.
+    const keys = Object.keys(LABELS) as (keyof typeof LABELS)[];
+    const first = keys.find((k) => check.problems[k as keyof ExpenseProblems] || serverProblems[k as keyof ExpenseProblems])
+      ?? keys.find((k) => problems[k as keyof ExpenseProblems]);
     // A problem in the bill details is fixed on the edit screen.
     if (first && isBillField(first)) { openBill(first, true); return; }
     if (first) { goToField(first); return; }
@@ -297,7 +302,7 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
       size="m"
       onClose={onBillScreen ? () => closeBill(false) : onClose}
       onSubmit={onBillScreen ? submitBill : () => submit(false)}
-      submitLabel={onBillScreen ? 'Save' : complete ? 'Send for approval' : 'Save draft'}
+      submitLabel={onBillScreen ? 'Save' : 'Send for approval'}
       saving={onBillScreen ? false : saving}
       submitDisabled={onBillScreen ? false : uploading || reading || (editing && !dirty)}
       dirtyCount={onBillScreen ? 0 : dirty}

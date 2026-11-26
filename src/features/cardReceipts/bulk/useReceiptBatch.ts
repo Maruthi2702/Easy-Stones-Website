@@ -29,6 +29,8 @@ export type BatchRow = {
   save: RowSave;
   error: string;
   problems: ExpenseProblems;
+  /** Save all skipped it for what it lacks (no drafts): its missing fields show until it is complete. */
+  asked: boolean;
   /** The receipt already saved that this one looks like (it carries what "Update the saved one" needs). */
   repeat: RepeatInfo | null;
   saved: { status: string; matchedMissing: boolean; merged?: boolean } | null;
@@ -131,7 +133,7 @@ export function useReceiptBatch({ today, categories, upload, scan, addOne, merge
     const out = problem || batchLeftOut(have, files.filter((f) => !receiptFileProblem(f)).length);
     setLeft(out);
     const fresh: BatchRow[] = taken.map((file) => ({
-      key: newVisitId(), file, values: blankRow(today), stage: 'uploading', note: '', open: false, save: 'new', error: '', problems: {}, repeat: null, saved: null,
+      key: newVisitId(), file, values: blankRow(today), stage: 'uploading', note: '', open: false, save: 'new', error: '', problems: {}, asked: false, repeat: null, saved: null,
       hash: '', dupLine: ''
     }));
     setRows((list) => [...list, ...fresh]);
@@ -155,14 +157,27 @@ export function useReceiptBatch({ today, categories, upload, scan, addOne, merge
   const busy = rows.some((r) => r.stage === 'uploading' || r.stage === 'reading' || r.save === 'saving');
   const todo = rows.filter((r) => r.save !== 'saved');
   const blocked = todo.filter((r) => r.stage === 'unreadable' || rowReadiness(check(r)) === 'blocked');
+  /** Rows that lack something (a merchant, day, total, category…): Save all leaves them here for the person to fill. */
+  const incomplete = todo.filter((r) => r.stage === 'ready' && rowReadiness(check(r)) !== 'ready').length;
   const ready = todo.filter((r) => r.stage === 'ready' && rowReadiness(check(r)) === 'ready').length;
 
-  /** Saves the rows not yet saved, one after the other (a failed one is named and the rest still go). A row that looked like a repeat waits for its own Save anyway. */
-  const saveAll = async (send: (r: BatchRow, n: number, of: number) => ExpenseBody): Promise<void> => {
+  /**
+   * Saves the complete rows not yet saved, one after the other (a failed one is named and the rest still go). There are no drafts
+   * (owner, 2026-11-26): a row that lacks something is not sent; it opens with what's missing shown and stays for the person to fill.
+   * A row that looked like a repeat waits for its own Save anyway. Answers how many rows were held back for details.
+   */
+  const saveAll = async (send: (r: BatchRow, n: number, of: number) => ExpenseBody): Promise<number> => {
     const of = rowsRef.current.length;
+    let held = 0;
     for (const first of [...rowsRef.current]) {
       const now = rowsRef.current.find((x) => x.key === first.key);
       if (!now || now.save === 'saved' || now.save === 'repeat') continue;
+      const c = check(now);
+      if (now.stage === 'unreadable' || rowReadiness(c) !== 'ready') {
+        held += 1;
+        patch(now.key, { asked: true, open: true, problems: {}, error: now.stage === 'unreadable' ? 'This file didn’t upload. Remove it and add it again.' : '' });
+        continue;
+      }
       const n = rowsRef.current.findIndex((x) => x.key === first.key) + 1;
       patch(now.key, { save: 'saving', error: '' });
       try {
@@ -175,6 +190,7 @@ export function useReceiptBatch({ today, categories, upload, scan, addOne, merge
           : { save: 'failed', error: e.message || 'Could not save this receipt.', problems: e.problems && typeof e.problems === 'object' ? e.problems : {}, open: true });
       }
     }
+    return held;
   };
   /** Save anyway on one row that looked like a repeat. */
   const saveAnyway = (key: string, send: (r: BatchRow, n: number, of: number) => ExpenseBody) => saveOne(key, send);
@@ -208,5 +224,5 @@ export function useReceiptBatch({ today, categories, upload, scan, addOne, merge
     }
   };
 
-  return { rows, left, busy, todo, blocked, ready, check, sameAs, setValues, addFiles, remove, clear, toggle, saveAll, saveAnyway, updateSaved, canUpdateSaved: Boolean(mergeOne), max: MAX_BATCH };
+  return { rows, left, busy, todo, blocked, incomplete, ready, check, sameAs, setValues, addFiles, remove, clear, toggle, saveAll, saveAnyway, updateSaved, canUpdateSaved: Boolean(mergeOne), max: MAX_BATCH };
 }

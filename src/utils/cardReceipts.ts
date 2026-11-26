@@ -331,10 +331,10 @@ const text = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max);
 const isReceiptUrl = (v: string) => /^https:\/\//.test(v) || v.startsWith('/uploads/') || Boolean(privateReceiptNameOf(v));
 
 /**
- * What a save may write, and what's wrong with it. A draft may leave the
- * category's extra fields, and the receipt, for later; only date, merchant
- * and total are needed to save at all. `complete` says whether it can go to
- * the approver.
+ * What a save may write, and what's wrong with it. `problems` is what is wrong
+ * with what was typed; `missing` is what a receipt still lacks (receipt or lost
+ * reason, category and its extra fields). Both must be empty to save: there are no
+ * drafts since 2026-11-26 (the routes refuse a save with anything in `missing`).
  */
 /** A lost-receipt reason has to say something (review B11, 2026-11-24): one letter was enough to send a receipt on. */
 export const LOST_REASON_MIN = 10;
@@ -431,13 +431,27 @@ export const missingLine = (missing: ExpenseProblems) => {
   return joined.charAt(0).toUpperCase() + joined.slice(1);
 };
 
-/** A save's status: complete → waiting for approval, else a draft (a sent-back one stays sent back until it's complete again). */
+/**
+ * A save's status. There are no new drafts since 2026-11-26 (owner): a save must be complete, so it goes to the approver.
+ * An incomplete save is refused by the routes (`incompleteRefusal`); the one that still gets here is an old draft / sent-back /
+ * Missing row, a statement row or an Admin's charge with nothing on it, which keeps the status it has.
+ */
 export const statusAfterSave = (complete: boolean, before?: string, hasProof = true): StatusKey => {
   if (complete) return 'waiting';
   // An Amex charge's Missing row stays Missing until a receipt or a lost-receipt reason is on it.
   if (before === 'missing' && !hasProof) return 'missing';
-  return before === 'sent_back' ? 'sent_back' : 'draft';
+  return (before || 'waiting') as StatusKey;
 };
+
+/** Words for a save that is missing something (owner, 2026-11-26: no drafts, so nothing incomplete is saved). */
+export const INCOMPLETE_MESSAGE = 'Fill in what’s missing to send it for approval.';
+
+/**
+ * Whether a save may be incomplete: never, except for a receipt that is already waiting / approved with nothing on it — a bank
+ * statement's refund or fee row, or an Admin's own charge, which need no receipt or category (they wait for Accounting).
+ */
+export const mayStayIncomplete = (e: { status?: unknown; receiptUrl?: unknown; lostReason?: unknown; statementKind?: unknown } | null | undefined) =>
+  Boolean(e) && (Boolean(e!.statementKind) || ((e!.status === 'waiting' || e!.status === 'approved') && !e!.receiptUrl && !e!.lostReason));
 
 /**
  * An expense that answers an Amex charge keeps Amex's day and amount (owner, 2026-11-20): what the

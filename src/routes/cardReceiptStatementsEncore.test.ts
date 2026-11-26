@@ -174,7 +174,7 @@ describe('the Encore check', () => {
     // A new Encore charge, then Maruthi saves a receipt for the same day and amount (it lands on his Amex card, the first of his cards).
     await post('import', [...FILE_ROWS, line('11/12/26', 'HARDWARE', 77.5, 'E-late')]);
     who = MARUTHI;
-    const saved = await request(app).post('/api/card-receipts/expenses').send({ id: UPLOADED_TWO, date: '2026-11-12', merchant: 'Hardware', total: '77.50' });
+    const saved = await request(app).post('/api/card-receipts/expenses').send({ id: UPLOADED_TWO, date: '2026-11-12', merchant: 'Hardware', total: '77.50', category: 'parking', lostReason: 'Lost it at the counter, no copy' });
     who = ACCOUNTANT;
     expect(saved.status).toBe(201);
     const [late] = (await db.select().from(cardStatementLines)).filter((l) => l.reference.startsWith('ENC-E-late'));

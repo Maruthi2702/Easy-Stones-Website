@@ -22,15 +22,15 @@ describe('Add several receipts: the rules', () => {
     expect(isBatchMarker(null)).toBe(false);
     expect(batchNote({ n: 3, of: 5 })).toBe('added in a batch (3 of 5)');
   });
-  it('tells ready, draft and blocked rows apart', () => {
+  it('tells ready, incomplete and blocked rows apart', () => {
     expect(rowReadiness({ value: {}, missing: {} })).toBe('ready');
-    expect(rowReadiness({ value: {}, missing: { category: 'Choose a category' } })).toBe('draft');
+    expect(rowReadiness({ value: {}, missing: { category: 'Choose a category' } })).toBe('incomplete');
     expect(rowReadiness({ missing: {} })).toBe('blocked');
   });
   it('sums up a finished batch', () => {
-    expect(batchSummary([{ status: 'waiting', matchedMissing: true }, { status: 'waiting', matchedMissing: false }, { status: 'draft', matchedMissing: false }], 0))
-      .toBe('2 sent for approval · 1 saved as a draft · 1 replaced a report row');
-    expect(batchSummary([{ status: 'draft', matchedMissing: false }, { status: 'draft', matchedMissing: false }], 1)).toBe('2 saved as drafts · 1 didn’t save');
+    expect(batchSummary([{ status: 'waiting', matchedMissing: true }, { status: 'waiting', matchedMissing: false }, { status: 'waiting', matchedMissing: false, merged: true }], 0))
+      .toBe('2 sent for approval · 1 updated a saved receipt · 1 replaced a report row');
+    expect(batchSummary([{ status: 'waiting', matchedMissing: false }], 1)).toBe('1 sent for approval · 1 didn’t save');
     expect(batchSummary([], 2)).toBe('2 didn’t save');
   });
 });

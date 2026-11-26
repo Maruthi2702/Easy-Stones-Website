@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   CARD_RECEIPTS, canOpenReceipts, categoryKey, cleanCategory, parseCents, formatMoney, usDate, shiftMonth, monthLabel, rangeProblem, inRange, rangeLabel, shortDay, MAX_RANGE_DAYS,
-  suggestCardLabel, cleanCard, cleanExpense, missingFor, missingLine, statusAfterSave, holderMayEdit, changeSummary,
+  suggestCardLabel, cleanCard, cleanExpense, missingFor, missingLine, statusAfterSave, mayStayIncomplete, holderMayEdit, changeSummary,
   possibleRepeat, mergeIntoSaved, mergeableRepeat, repeatInfoOf, canApprove, cleanApproverRoles, decisionProblem, statusTotals, exportRows, billMismatch, typedBillMismatch, billMismatchLine, type CategoryLike
 } from './cardReceipts.ts';
 
@@ -86,7 +86,7 @@ describe('an expense', () => {
     const { problems } = cleanExpense({ date: '2026-12-01', merchant: '', total: '0' }, { today: TODAY, categories: CATS });
     expect(Object.keys(problems).sort()).toEqual(['date', 'merchant', 'total']);
   });
-  it('lets a draft leave the receipt and category for later, and says what’s missing', () => {
+  it('says what’s missing when the receipt and category are left for later (the routes refuse it: no drafts)', () => {
     const { value, missing } = cleanExpense({ date: '2026-10-11', merchant: 'SP PARK', total: '12.85' }, { today: TODAY, categories: CATS });
     expect(value).toBeTruthy();
     expect(missingLine(missing)).toBe('Upload the receipt and pick a category');
@@ -98,7 +98,7 @@ describe('an expense', () => {
     const travel = cleanExpense({ ...base, category: 'travel_lunch', customerId: 'c1' }, { today: TODAY, categories: CATS });
     expect(travel.value).toMatchObject({ customerId: '' });
   });
-  it('a category that requires a note holds the receipt as a draft until one is written', () => {
+  it('a category that requires a note is incomplete until one is written', () => {
     const none = cleanExpense({ ...base, category: 'travel', note: '' }, { today: TODAY, categories: CATS });
     expect(none.missing).toEqual({ note: 'Add a note' });
     expect(missingLine(none.missing)).toBe('Add a note');
@@ -133,8 +133,16 @@ describe('an expense', () => {
   });
   it('goes to the approver once complete; a sent-back one stays sent back until then', () => {
     expect(statusAfterSave(true)).toBe('waiting');
-    expect(statusAfterSave(false)).toBe('draft');
+    // Incomplete never reaches here from a route (it is refused); an old row keeps the status it has.
+    expect(statusAfterSave(false, 'draft')).toBe('draft');
     expect(statusAfterSave(false, 'sent_back')).toBe('sent_back');
+    expect(statusAfterSave(false, 'missing', false)).toBe('missing');
+    expect(mayStayIncomplete({ status: 'waiting' })).toBe(true);
+    expect(mayStayIncomplete({ status: 'waiting', receiptUrl: 'https://x/y.jpg' })).toBe(false);
+    expect(mayStayIncomplete({ status: 'draft' })).toBe(false);
+    expect(mayStayIncomplete({ status: 'sent_back' })).toBe(false);
+    expect(mayStayIncomplete({ status: 'draft', statementKind: 'fee' })).toBe(true);
+    expect(mayStayIncomplete(null)).toBe(false);
     expect(holderMayEdit({ status: 'approved' })).toBe(false);
     expect(holderMayEdit({ status: 'sent_back' })).toBe(true);
     expect(holderMayEdit({ status: 'waiting', voided: new Date() })).toBe(false);

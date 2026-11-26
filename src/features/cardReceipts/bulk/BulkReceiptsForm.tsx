@@ -37,8 +37,9 @@ const money = (v: string) => { const n = Number(v); return Number.isFinite(n) &&
 
 /**
  * Add several receipts at once (owner's ask 2026-11-24, Accounting and Admins): pick ONE cardholder and ONE card,
- * drop the files, give each its own category and note, Save all. Each becomes its own receipt (a complete one goes to
- * approval, an incomplete one is kept as a draft, owner's call) and the Amex check still matches each to its charge.
+ * drop the files, give each its own category and note, Save all. Each becomes its own receipt and goes to approval; a row
+ * that lacks something is not saved (no drafts, owner 2026-11-26): it stays here, open, with what's missing shown, and the
+ * person fills it and saves again. The Amex check still matches each saved one to its charge.
  * The cardholder is locked once files are in, so one batch can't mix people.
  */
 export default function BulkReceiptsForm({ holders, ownCards, meId, categories, today, upload, scan, addOne, mergeOne, onSaved, onClose }: BulkReceiptsFormProps) {
@@ -51,6 +52,8 @@ export default function BulkReceiptsForm({ holders, ownCards, meId, categories, 
   const [over, setOver] = useState(false);
   const [finished, setFinished] = useState(false);
   const [saving, setSaving] = useState(false);
+  /** How many rows the last Save all held back for details. */
+  const [held, setHeld] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const customers = useCustomerOptions();
   const customerOptions = useMemo(() => customers.options.map((o) => ({ value: o.value, label: o.label, description: o.description, keywords: o.keywords })), [customers.options]);
@@ -83,13 +86,12 @@ export default function BulkReceiptsForm({ holders, ownCards, meId, categories, 
   const summary = batchSummary(saved.map((r) => r.saved!), failed.length);
   const allSaved = rows.length > 0 && saved.length === rows.length;
   const left = rows.length - saved.length;
-  const blockedCount = batch.blocked.length;
 
   const saveAll = async () => {
     if (batch.busy || saving) return;
     setSaving(true);
     try {
-      await batch.saveAll(send);
+      setHeld(await batch.saveAll(send));
       if (cards.length > 1) rememberCard(holderId, cardId);
       setFinished(true);
     } finally { setSaving(false); }
@@ -99,7 +101,7 @@ export default function BulkReceiptsForm({ holders, ownCards, meId, categories, 
   // Closing with receipts not yet saved asks first (FormModal's own check) via dirtyCount.
   const dirtyCount = allSaved ? 0 : left;
   const submitLabel = allSaved ? 'Done' : finished && failed.length ? `Retry ${left} not saved` : `Save all (${left})`;
-  const submitDisabled = !allSaved && (batch.busy || saving || !rows.length || blockedCount > 0 || batch.todo.every((r) => r.save === 'repeat'));
+  const submitDisabled = !allSaved && (batch.busy || saving || !rows.length || batch.todo.every((r) => r.save === 'repeat'));
 
   return (
     <FormModal
@@ -113,11 +115,13 @@ export default function BulkReceiptsForm({ holders, ownCards, meId, categories, 
       dirtyCount={dirtyCount}
       discardTitle="Discard these receipts?"
       footerNote={!allSaved && rows.length ? (
-        blockedCount ? <span>{blockedCount} {blockedCount === 1 ? 'receipt needs' : 'receipts need'} a merchant, date and total first</span>
-          : <span>{batch.ready} ready for approval · {rows.length - batch.ready - saved.length} will be saved as {rows.length - batch.ready - saved.length === 1 ? 'a draft' : 'drafts'}</span>
+        batch.incomplete
+          ? <span>{batch.ready} ready for approval · {batch.incomplete} {batch.incomplete === 1 ? 'needs' : 'need'} details first (not saved until filled)</span>
+          : <span>{batch.ready} ready for approval</span>
       ) : null}
     >
       {finished && summary ? <div className={`ccr-form-error${failed.length ? '' : ' is-ok'}`} role="status">{summary}</div> : null}
+      {finished && held > 0 && batch.incomplete > 0 ? <div className="ccr-form-error" role="alert">{batch.incomplete === 1 ? '1 receipt needs' : `${batch.incomplete} receipts need`} details before {batch.incomplete === 1 ? 'it can' : 'they can'} be sent. What’s missing is marked below. Fill it in, then Save all again.</div> : null}
 
       <FormSection>
         <FormField name="holder" id="ccr-bulk-holder" label="Receipts for" required>
@@ -187,14 +191,14 @@ function Row({ row, index, sameAs, categories, today, check, customerOptions, cu
   const working = row.stage === 'uploading' || row.stage === 'reading';
   const idp = `ccr-bulk-${row.key}`;
   // What is needed to save at all shows as soon as the row is open; the rest (category, note…) only if the server asks.
-  const need = { ...check.problems, ...row.problems };
-  const chip = row.save === 'saved' ? (row.saved?.merged ? 'Updated the saved receipt' : row.saved?.status === 'waiting' ? 'Sent for approval' : 'Saved as a draft')
+  const need = { ...check.problems, ...(row.asked ? check.missing : {}), ...row.problems };
+  const chip = row.save === 'saved' ? (row.saved?.merged ? 'Updated the saved receipt' : 'Sent for approval')
     : row.save === 'saving' ? 'Saving…'
     : row.save === 'repeat' ? 'Looks already saved'
     : row.save === 'failed' ? 'Didn’t save'
     : row.stage === 'uploading' ? 'Uploading…' : row.stage === 'reading' ? 'Reading…'
     : row.stage === 'unreadable' ? 'Upload failed'
-    : state === 'ready' ? 'Ready' : state === 'draft' ? (check.missing.category ? 'Needs a category' : 'Draft · needs details') : 'Needs merchant, date, total';
+    : state === 'ready' ? 'Ready' : state === 'incomplete' ? (check.missing.category ? 'Needs a category' : 'Needs details') : 'Needs merchant, date, total';
   const tone = row.save === 'saved' ? 'ok' : row.save === 'failed' || row.save === 'repeat' || row.stage === 'unreadable' || (state === 'blocked' && !working) ? 'bad' : state === 'ready' ? 'ok' : 'wait';
   const isImage = row.file.type !== 'application/pdf';
   const [preview, setPreview] = useState('');
@@ -252,17 +256,17 @@ function Row({ row, index, sameAs, categories, today, check, customerOptions, cu
             </FormRow>
           </FormSection>
           <FormSection>
-            <FormField name="category" id={`${idp}-c`} label="Category" required error={row.problems.category}>
+            <FormField name="category" id={`${idp}-c`} label="Category" required error={need.category}>
               <FormSearchPicker id={`${idp}-c`} value={v.category} options={categoryOptions} placeholder="Choose a category" searchPlaceholder="Search categories" sheetTitle="Category" maxResults={200} keepInForm
                 onChange={(c) => onChange({ category: c, subcategory: defaultSubOf(categories.find((o) => o.name === c))?.name || '' })} />
             </FormField>
             {subs.length ? (
-              <FormField name="subcategory" id={`${idp}-s`} label="Sub-category" required error={row.problems.subcategory}>
+              <FormField name="subcategory" id={`${idp}-s`} label="Sub-category" required error={need.subcategory}>
                 <FormPicker id={`${idp}-s`} value={v.subcategory} onChange={(s) => onChange({ subcategory: s })} options={subs} placeholder="Choose the type" sheetTitle="Sub-category" keepInForm />
               </FormField>
             ) : null}
             {fields.customer ? (
-              <FormField name="customer" id={`${idp}-u`} label="Customer" required error={row.problems.customer}>
+              <FormField name="customer" id={`${idp}-u`} label="Customer" required error={need.customer}>
                 <FormSearchPicker id={`${idp}-u`} value={v.customerId} selectedLabel={v.customerName} options={customerOptions} loading={customersLoading}
                   placeholder="Choose the customer" searchPlaceholder="Search name, city or contact" sheetTitle="Customer" keepInForm
                   onChange={(id) => onChange({ customerId: id, customerName: customerOptions.find((c) => c.value === id)?.label || '' })} />
@@ -271,7 +275,7 @@ function Row({ row, index, sameAs, categories, today, check, customerOptions, cu
             {fields.recurring ? (
               <label className="ccr-check"><input type="checkbox" checked={v.recurring} onChange={(e) => onChange({ recurring: e.target.checked })} /> Recurring every month</label>
             ) : null}
-            <FormField name="note" id={`${idp}-n`} label="Note" required={fields.note} error={row.problems.note}>
+            <FormField name="note" id={`${idp}-n`} label="Note" required={fields.note} error={need.note}>
               <textarea id={`${idp}-n`} className="fm-input fm-textarea" rows={2} maxLength={500} autoCapitalize="sentences" placeholder="Why it was bought / anything the approver should know" value={v.note} onChange={(e) => onChange({ note: e.target.value })} />
             </FormField>
           </FormSection>

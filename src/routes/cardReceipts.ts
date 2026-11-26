@@ -29,7 +29,7 @@ import { afterReceiptSaved, afterCardSaved, amexChargeOf, amexNameLookup, nearRe
 import { missingFromFor } from '../utils/amexStatement.ts';
 import {
   CARD_RECEIPTS, PAGE_PERMISSIONS, STARTING_CATEGORIES, startingSubcategories, categoryKey, cleanCategory, cleanCard, cleanExpense,
-  statusAfterSave, statusAfterAnyEdit, anyoneMayEdit, deleteReasonProblem, missingFor, holderMayEdit, managerMayEdit, changeSummary, possibleRepeat, centsText,
+  statusAfterSave, statusAfterAnyEdit, mayStayIncomplete, INCOMPLETE_MESSAGE, anyoneMayEdit, deleteReasonProblem, missingFor, holderMayEdit, managerMayEdit, changeSummary, possibleRepeat, centsText,
   mergeableRepeat, mergeIntoSaved, repeatInfoOf, chooseCard, isMonth, rangeProblem, monthOf, BANK_FILTERS, onBank, matchedChangeProblem, isReceiptFolderUrl, isPrivateReceiptName, privateReceiptNameOf, privateReceiptUrlOfKey, PRIVATE_RECEIPT_ROUTE, PRIVATE_RECEIPT_KEY_PREFIX, type CleanExpense
 } from '../utils/cardReceipts.ts';
 import type { Loose } from '../types/records.ts';
@@ -687,6 +687,8 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const shown = categories.filter((c) => c.active);
       const { value, problems, missing } = cleanExpense(body, { today: todayOf(), categories: shown });
       if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
+      // No drafts (owner, 2026-11-26): nothing incomplete is saved.
+      if (Object.keys(missing).length) return res.status(400).json({ message: INCOMPLETE_MESSAGE, problems: missing, incomplete: true });
       const file = await receiptFileOf(fileStore(), value.receiptUrl, '', actorId); // the file is the uploader's
       if (file.problem) return res.status(400).json({ message: 'Some fields need attention.', problems: { receipt: file.problem } });
       const noCustomer = await customerProblem(value);
@@ -768,6 +770,9 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const allowed = categories.filter((c) => c.active || c.name === expense.category);
       const { value, problems, missing } = cleanExpense(req.body || {}, { today: todayOf(), categories: allowed, currentSubcategory: expense.subcategory || '', currentLostReason: expense.lostReason || '' });
       if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
+      // No drafts (owner, 2026-11-26): an edit is complete too, except a statement row or an Admin's charge that needs no receipt.
+      const stays = mayStayIncomplete(expense);
+      if (Object.keys(missing).length && !stays) return res.status(400).json({ message: INCOMPLETE_MESSAGE, problems: missing, incomplete: true });
       const file = await receiptFileOf(fileStore(), value.receiptUrl, expense.receiptUrl || '', me);
       if (file.problem) return res.status(400).json({ message: 'Some fields need attention.', problems: { receipt: file.problem } });
       // A customer deleted since doesn't block editing the rest; picking a different one is checked.
@@ -791,7 +796,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const changes = [...changeSummary(cleanOf(expense), value), ...(newCard ? [`card ${expense.cardLabel} → ${newCard.label}`] : [])];
       const complete = Object.keys(missing).length === 0;
       const hasProof = Boolean(value.receiptUrl || value.lostReason);
-      const status = any ? statusAfterAnyEdit(expense.status, complete, hasProof) : statusAfterSave(complete, expense.status, hasProof);
+      const status = !complete ? expense.status : any ? statusAfterAnyEdit(expense.status, complete, hasProof) : statusAfterSave(complete, expense.status, hasProof);
       if (!changes.length && status === expense.status) return res.json({ expense: await viewOf(expense, approvalViewerOf(req)), unchanged: true });
       const by = actor(req);
       const sentForApproval = status === 'waiting' && expense.status !== 'waiting';

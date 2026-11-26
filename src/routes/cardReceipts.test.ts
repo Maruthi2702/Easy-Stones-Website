@@ -291,13 +291,20 @@ describe('saving a receipt', () => {
     await as(REP).put(`/expenses/${body.id}`, { ...body, cardId: 'nope' }).expect(400);
   });
 
-  it('keeps an unfinished one as a draft, and finishing it sends it for approval', async () => {
+  it('refuses an unfinished one (no drafts) and says what is missing; a complete one is sent for approval', async () => {
     const body = receipt({ category: 'customer_lunch', merchant: 'Kashish Cuisine of India', total: '57.29' });
-    const draft = await as(REP).post('/expenses', body).expect(201);
-    expect(draft.body.expense.status).toBe('draft');
-    const done = await as(REP).put(`/expenses/${body.id}`, { ...body, customerId: CUSTOMER, customerName: 'Cascade Countertops', attendees: ['Maruthi Ponugupati', 'J. Alvarez'] }).expect(200);
+    const refused = await as(REP).post('/expenses', body).expect(400);
+    expect(refused.body).toMatchObject({ incomplete: true, problems: { customer: expect.any(String) } });
+    expect(await CardExpense.countDocuments()).toBe(0);
+    const done = await as(REP).post('/expenses', { ...body, customerId: CUSTOMER, customerName: 'Cascade Countertops', attendees: ['Maruthi Ponugupati', 'J. Alvarez'] }).expect(201);
     expect(done.body.expense.status).toBe('waiting');
-    expect(done.body.expense.history.at(-1).changes).toMatch(/customer, who attended · sent for approval/);
+    // An edit that would leave it incomplete is refused too, and nothing changes.
+    const edit = await as(REP).put(`/expenses/${body.id}`, { ...body, customerId: '', customerName: '' }).expect(400);
+    expect(edit.body.incomplete).toBe(true);
+    expect((await CardExpense.findById(body.id).lean())).toMatchObject({ status: 'waiting', customerId: CUSTOMER });
+    // Neither a receipt nor a reason, and no category.
+    const none = await as(REP).post('/expenses', receipt({ category: '', receiptUrl: '' })).expect(400);
+    expect(Object.keys(none.body.problems).sort()).toEqual(['category', 'receipt']);
   });
 
   it('answers a repeated save with the one it has', async () => {
@@ -997,13 +1004,13 @@ describe('sub-categories', () => {
     await as(ACCOUNTING).put(`/categories/${gas.body.category._id}`, {
       label: 'Gas', subcategories: [{ name: 'car', label: 'Car', isDefault: true }, { name: 'truck', label: 'Truck' }, { name: 'van', label: 'Van', active: false }]
     }).expect(200);
-    const draft = await as(REP).post('/expenses', receipt({ category: 'gas', total: '40.00' })).expect(201);
-    expect(draft.body.expense).toMatchObject({ status: 'draft', subcategory: '' });
+    const noType = await as(REP).post('/expenses', receipt({ category: 'gas', total: '40.00' })).expect(400);
+    expect(noType.body.problems.subcategory).toBeTruthy();
     const sent = await as(REP).post('/expenses', receipt({ category: 'gas', subcategory: 'truck', total: '41.00' })).expect(201);
     expect(sent.body.expense).toMatchObject({ status: 'waiting', category: 'gas', subcategory: 'truck' });
     await as(REP).post('/expenses', receipt({ category: 'gas', subcategory: 'boat', total: '42.00' })).expect(400);
-    // The draft is finished by picking the type.
-    const done = await as(REP).put(`/expenses/${draft.body.expense.id}`, receipt({ category: 'gas', subcategory: 'car', total: '40.00' })).expect(200);
+    // Changing the type later is an ordinary edit.
+    const done = await as(REP).put(`/expenses/${sent.body.expense.id}`, receipt({ category: 'gas', subcategory: 'car', total: '41.00' })).expect(200);
     expect(done.body.expense).toMatchObject({ status: 'waiting', subcategory: 'car' });
     expect(done.body.expense.history.at(-1).changes).toMatch(/type/);
     // A hidden type can't start a new receipt.
@@ -1013,8 +1020,8 @@ describe('sub-categories', () => {
   it('Customer Lunch asks for the customer only, and a moved category clears the type', async () => {
     const gas = await makeGas();
     const food = await as(ACCOUNTING).post('/categories', { label: 'Food', subcategories: [{ label: 'Travel Lunch' }, { label: 'Customer Lunch', fields: { customer: true } }, { label: 'Office Team Lunch' }] }).expect(201);
-    const lunch = await as(REP).post('/expenses', receipt({ category: 'food', subcategory: 'customer_lunch', total: '44.00' })).expect(201);
-    expect(lunch.body.expense).toMatchObject({ status: 'draft' });
+    const lunch = await as(REP).post('/expenses', receipt({ category: 'food', subcategory: 'customer_lunch', total: '44.00' })).expect(400);
+    expect(lunch.body.problems.customer).toBeTruthy();
     const team = await as(REP).post('/expenses', receipt({ category: 'food', subcategory: 'office_team_lunch', total: '45.00' })).expect(201);
     expect(team.body.expense.status).toBe('waiting');
     await as(ACCOUNTING).del(`/categories/${food.body.category._id}`, { replaceWith: gas.body.category._id }).expect(200);
@@ -1044,9 +1051,12 @@ describe('Accounting edits and voids any receipt; admins delete', () => {
     expect(saved.body.expense.history.at(-1).changes).toMatch(/on behalf of Maruthi/);
   });
 
-  it('keeps a waiting receipt waiting, finishes someone’s draft the usual way, and never touches a voided one', async () => {
+  it('keeps a waiting receipt waiting, finishes someone’s old draft the usual way, and never touches a voided one', async () => {
+    // A draft left from before drafts were removed (nothing can make a new one now).
     const draft = receipt({ category: '', receiptUrl: '', total: '20.00' });
-    await as(REP).post('/expenses', draft).expect(201);
+    const holderCard = await CompanyCard.findOne({ userId: ids.rep }).lean();
+    await CardExpense.create({ _id: draft.id, userId: ids.rep, holderName: 'Maruthi Ponugupati', cardId: String(holderCard!._id), cardLabel: holderCard!.label, location: 'Kent',
+      date: '2026-10-03', month: '2026-10', merchant: "McDonald's, Kent", cents: 2000, status: 'draft', history: [{ at: new Date(), by: 'Maruthi Ponugupati', action: 'added', changes: '' }] });
     const finished = await as(EDITOR).put(`/expenses/${draft.id}`, { ...receipt({ id: draft.id, total: '20.00' }), note: 'fixed' }).expect(200);
     expect(finished.body.expense.status).toBe('waiting');
     const body = receipt({ total: '31.00' });

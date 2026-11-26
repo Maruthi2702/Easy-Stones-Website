@@ -85,7 +85,7 @@ describe('confirming the category after the upload', () => {
     const { onSave } = await open('');
     expect(text()).toContain('Pick the category for this receipt.');
     expect(screen.queryByRole('button', { name: 'Yes, it’s right' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: /Save draft/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Send for approval/ }));
     await settle();
     expect(onSave).not.toHaveBeenCalled();
   });

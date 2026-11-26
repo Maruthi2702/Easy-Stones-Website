@@ -28,9 +28,12 @@ const deps = () => {
     ({ url: `https://files/${FILE_NO.get(opts?.hash ?? '') ?? 0}.jpg` }));
   const names = ['Shell', 'Staples', 'Jinya'];
   const scan = vi.fn(async (url: string) => { const n = Number(/(\d+)\.jpg$/.exec(url)?.[1]); return scanFor(names[n - 1]!, 1000 * n); });
-  const addOne = vi.fn(async (_id: string, body: Record<string, unknown>) => ({ expense: { status: body.category ? 'waiting' : 'draft' } as never, matchedMissing: body.merchant === 'Shell' }));
+  const addOne = vi.fn(async (_id: string, body: Record<string, unknown>) => ({ expense: { status: 'waiting' } as never, matchedMissing: body.merchant === 'Shell' }));
   return { today: '2026-10-20', categories: CATEGORIES, upload, scan, addOne };
 };
+/** Gives every row a category so it is complete (a row without one is held back, no drafts). */
+const complete = (result: { current: { rows: { key: string }[]; setValues: (k: string, v: object) => void } }) =>
+  act(() => { result.current.rows.forEach((r) => result.current.setValues(r.key, { category: 'fuel' })); });
 afterEach(cleanup);
 URL.createObjectURL = () => 'blob:thumb';
 URL.revokeObjectURL = () => {};
@@ -44,20 +47,29 @@ describe('the batch hook', () => {
     expect(result.current.rows.map((r) => r.values.merchant)).toEqual(['Shell', 'Staples', 'Jinya']);
     expect(result.current.rows.map((r) => r.values.receiptUrl)).toEqual(['https://files/1.jpg', 'https://files/2.jpg', 'https://files/3.jpg']);
     expect(result.current.rows[0]!.note).toMatch(/Filled in the date, merchant and total/);
-    // No category yet: every row would be a draft, none blocked.
+    // No category yet: every row is incomplete (none lacks merchant, day or total).
     expect(result.current.blocked).toHaveLength(0);
     expect(result.current.ready).toBe(0);
     const [a, b, c] = result.current.rows;
     act(() => { result.current.setValues(a!.key, { category: 'fuel' }); result.current.setValues(b!.key, { category: 'travel_lunch', note: 'Team lunch' }); });
     expect(result.current.ready).toBe(2);
-    await act(async () => { await result.current.saveAll((r, n, of) => ({ ...r.values, onBehalfOf: 'u7', batch: { n, of } } as never)); });
-    expect(d.addOne).toHaveBeenCalledTimes(3);
+    let held = -1;
+    await act(async () => { held = await result.current.saveAll((r, n, of) => ({ ...r.values, onBehalfOf: 'u7', batch: { n, of } } as never)); });
+    // No drafts: the two complete rows are sent; the third is held back, open, with what it lacks shown.
+    expect(held).toBe(1);
+    expect(d.addOne).toHaveBeenCalledTimes(2);
     const calls = d.addOne.mock.calls;
-    expect(calls.map((x) => x[0])).toEqual([a!.key, b!.key, c!.key]);
-    expect(new Set(calls.map((x) => x[0])).size).toBe(3);
-    expect(calls.map((x) => x[1].category)).toEqual(['fuel', 'travel_lunch', '']);
-    expect(calls.map((x) => [x[1].onBehalfOf, x[1].batch])).toEqual([['u7', { n: 1, of: 3 }], ['u7', { n: 2, of: 3 }], ['u7', { n: 3, of: 3 }]]);
-    expect(result.current.rows.map((r) => r.saved)).toEqual([{ status: 'waiting', matchedMissing: true }, { status: 'waiting', matchedMissing: false }, { status: 'draft', matchedMissing: false }]);
+    expect(calls.map((x) => x[0])).toEqual([a!.key, b!.key]);
+    expect(calls.map((x) => x[1].category)).toEqual(['fuel', 'travel_lunch']);
+    expect(calls.map((x) => [x[1].onBehalfOf, x[1].batch])).toEqual([['u7', { n: 1, of: 3 }], ['u7', { n: 2, of: 3 }]]);
+    expect(result.current.rows.map((r) => r.saved)).toEqual([{ status: 'waiting', matchedMissing: true }, { status: 'waiting', matchedMissing: false }, null]);
+    expect(result.current.rows[2]).toMatchObject({ save: 'new', asked: true, open: true });
+    expect(result.current.incomplete).toBe(1);
+    // Filled in, it goes on the next Save all.
+    act(() => { result.current.setValues(c!.key, { category: 'fuel' }); });
+    await act(async () => { held = await result.current.saveAll((r, n, of) => ({ ...r.values, batch: { n, of } } as never)); });
+    expect(held).toBe(0);
+    expect(d.addOne).toHaveBeenCalledTimes(3);
   });
 
   it('sends each file’s fingerprint, names a file picked twice in the batch, and says when a photo is already on a receipt', async () => {
@@ -83,6 +95,7 @@ describe('the batch hook', () => {
     const { result } = renderHook(() => useReceiptBatch(d));
     act(() => { result.current.addFiles([photo('a.jpg'), photo('b.jpg'), photo('c.jpg')]); });
     await waitFor(() => expect(result.current.rows.every((r) => r.stage === 'ready')).toBe(true));
+    complete(result);
     const send = (r: { values: object }, n: number, of: number) => ({ ...r.values, batch: { n, of } } as never);
     await act(async () => { await result.current.saveAll(send); });
     expect(result.current.rows.map((r) => r.save)).toEqual(['failed', 'repeat', 'saved']);
@@ -103,6 +116,7 @@ describe('the batch hook', () => {
     const { result } = renderHook(() => useReceiptBatch({ ...d, mergeOne }));
     act(() => { result.current.addFiles([photo('a.jpg'), photo('b.jpg')]); });
     await waitFor(() => expect(result.current.rows.every((r) => r.stage === 'ready')).toBe(true));
+    complete(result);
     const send = (r: { values: object }, n: number, of: number) => ({ ...r.values, batch: { n, of } } as never);
     await act(async () => { await result.current.saveAll(send); });
     expect(result.current.rows.map((r) => r.save)).toEqual(['repeat', 'repeat']);
@@ -140,11 +154,13 @@ describe('the Add several window', () => {
 
   it('locks the cardholder once files are in and saves them all', async () => {
     const p = props();
+    // The reading finds a category on each, so both rows are complete.
+    p.scan.mockImplementation(async (url: string) => { const n = Number(/(\d+)\.jpg$/.exec(url)?.[1]); return { scan: { ...scanFor(['Shell', 'Staples'][n - 1]!, 1000 * n).scan, category: 'fuel' } }; });
     const { container } = render(<BulkReceiptsForm {...p} />);
     expect(screen.getByText('Choose photos or PDFs')).toBeTruthy();
     const input = container.ownerDocument.querySelector('input[type=file]') as HTMLInputElement;
     await act(async () => { fireEvent.change(input, { target: { files: [photo('a.jpg'), photo('b.jpg')] } }); });
-    await waitFor(() => expect(screen.getAllByText(/Needs a category/).length).toBe(2));
+    await waitFor(() => expect(screen.getAllByText('Ready').length).toBe(2));
     expect(screen.getByText(/One cardholder per batch/)).toBeTruthy();
     expect((screen.getByRole('button', { name: /Save all \(2\)/ }) as HTMLButtonElement).disabled).toBe(false);
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Save all \(2\)/ })); });
@@ -154,6 +170,20 @@ describe('the Add several window', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy());
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
     expect(screen.getAllByText(/Matched the charge on the bank’s report/).length).toBe(1);
-    expect(p.onSaved).toHaveBeenCalledWith('2 saved as drafts · 1 replaced a report row');
+    expect(p.onSaved).toHaveBeenCalledWith('2 sent for approval · 1 replaced a report row');
+  });
+
+  it('saves nothing for rows that lack a category and shows what each needs, with no drafts', async () => {
+    const p = props();
+    const { container } = render(<BulkReceiptsForm {...p} />);
+    const input = container.ownerDocument.querySelector('input[type=file]') as HTMLInputElement;
+    await act(async () => { fireEvent.change(input, { target: { files: [photo('a.jpg'), photo('b.jpg')] } }); });
+    await waitFor(() => expect(screen.getAllByText(/Needs a category/).length).toBe(2));
+    expect(screen.getByText(/0 ready for approval · 2 need details first/)).toBeTruthy();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Save all \(2\)/ })); });
+    expect(p.addOne).not.toHaveBeenCalled();
+    expect(screen.getByText(/2 receipts need details before they can be sent/)).toBeTruthy();
+    // Each row is open with its category marked.
+    await waitFor(() => expect(screen.getAllByText('Choose a category').length).toBeGreaterThanOrEqual(2));
   });
 });

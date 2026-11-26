@@ -183,7 +183,7 @@ describe('the Amex check', () => {
     expect(voided.body.message).toMatch(/removed by Accounting/);
     // The same day and total as the Missing receipt row: not a repeat — it answers the charge.
     const id = hex(99);
-    const res = await request(app).post('/api/card-receipts/expenses').send({ id, date: '2026-11-06', merchant: 'Chevron', total: '12.00' });
+    const res = await request(app).post('/api/card-receipts/expenses').send({ id, date: '2026-11-06', merchant: 'Chevron', total: '12.00', category: 'parking', lostReason: 'Lost it at the counter, no copy' });
     expect(res.status).toBe(201);
     expect(res.body.replacedMissing).toBe(before!.id);
     const [line] = await db.select().from(cardStatementLines).where(eq(cardStatementLines.reference, 'ref-missing'));
@@ -191,7 +191,7 @@ describe('the Amex check', () => {
     const [gone] = await db.select().from(cardExpenses).where(eq(cardExpenses.id, before!.id));
     expect(gone).toMatchObject({ voidReason: 'Receipt uploaded', voidedBy: 'Maruthi Ponugupati' });
     // A second receipt of the same total has no charge left to answer.
-    const again = await request(app).post('/api/card-receipts/expenses').send({ id: hex(100), date: '2026-11-06', merchant: 'Chevron', total: '12.00', confirmRepeat: true });
+    const again = await request(app).post('/api/card-receipts/expenses').send({ id: hex(100), date: '2026-11-06', merchant: 'Chevron', total: '12.00', category: 'parking', lostReason: 'Lost it at the counter, no copy', confirmRepeat: true });
     expect(again.body.replacedMissing).toBeUndefined();
     // The Expenses list says which receipts a statement line answers (green rows) and which none does yet (amber rows).
     const listed: { id: string; onStatement: boolean | null }[] = (await request(app).get('/api/card-receipts/expenses?month=2026-11')).body.expenses;
@@ -347,14 +347,14 @@ describe('an Admin’s own charge', () => {
     await db.update(cardExpenses).set({ status: 'approved', approvedById: ACCT, approvedByName: 'Ann Count', approvedAt: new Date() }).where(eq(cardExpenses.id, hertz.id));
     // The Admin uploads the receipt the usual way: the same day and total is not a repeat, it takes the waiting row's place.
     who = ADMIN;
-    const up = await request(app).post('/api/card-receipts/expenses').send({ id: hex(400), date: '2026-11-14', merchant: 'Delta', total: '480.00' });
+    const up = await request(app).post('/api/card-receipts/expenses').send({ id: hex(400), date: '2026-11-14', merchant: 'Delta', total: '480.00', category: 'parking', lostReason: 'Lost it at the counter, no copy' });
     expect(up.status).toBe(201);
     expect(up.body.replacedMissing).toBe(delta.id);
     const [gone] = await db.select().from(cardExpenses).where(eq(cardExpenses.id, delta.id));
     expect(gone).toMatchObject({ voidReason: 'Receipt uploaded' });
     const [l] = await db.select().from(cardStatementLines).where(eq(cardStatementLines.reference, 'ref-admin'));
     expect(l!.expenseId).toBe(hex(400));
-    const again = await request(app).post('/api/card-receipts/expenses').send({ id: hex(401), date: '2026-11-15', merchant: 'Hertz', total: '90.00', confirmRepeat: true });
+    const again = await request(app).post('/api/card-receipts/expenses').send({ id: hex(401), date: '2026-11-15', merchant: 'Hertz', total: '90.00', category: 'parking', lostReason: 'Lost it at the counter, no copy', confirmRepeat: true });
     expect(again.status).toBe(201);
     expect(again.body.replacedMissing).toBeUndefined();
     const [kept] = await db.select().from(cardStatementLines).where(eq(cardStatementLines.reference, 'ref-admin-2'));

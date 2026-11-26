@@ -348,10 +348,13 @@ describe('the Credit Card Receipts page', () => {
     expect(text()).toContain('$12.85');
     expect(text()).toContain('SP PARK');
     expect(text()).not.toContain('Saves as a draft');
-    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    // No drafts: with no receipt (or lost reason) and no category, nothing is sent and the form says what's missing.
+    const before = fake.posted.length;
+    fireEvent.click(screen.getByRole('button', { name: 'Send for approval' }));
     await settle();
-    expect(fake.posted.at(-1)!.body).toMatchObject({ merchant: 'SP PARK', total: '12.85', date: '2026-10-20' });
-    expect(text()).toContain('Saved as a draft');
+    expect(fake.posted.length).toBe(before);
+    expect(text()).toContain('Choose a category');
+    expect(text()).not.toContain('Saved as a draft');
   });
 
   it('puts ✕ on Edit bill details back to what the card showed, and "+ Add tip" opens it', async () => {
@@ -385,7 +388,7 @@ describe('the Credit Card Receipts page', () => {
   it('sends someone to Edit bill details when a save is missing the merchant or total', async () => {
     await show(['use_card_receipts']);
     openAdd();
-    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send for approval' }));
     expect(text()).toContain('Edit bill details');
     expect(fake.posted.length).toBe(0);
   });

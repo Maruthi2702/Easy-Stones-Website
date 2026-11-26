@@ -1416,7 +1416,13 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   (`POST /attachments`); the screen makes the `_id`, so a repeat answers
   `alreadySaved`; the same day + total already saved answers 409 `repeat` until
   "Save anyway" (`confirmRepeat`).
-- **Draft → Waiting for approval → Approved**, or **Sent back** with a comment.
+- **No drafts since 2026-11-26** (owner: "the user needs to fill everything to submit"; on `feat/receipt-fees`, uncommitted): `POST` / `PUT /expenses`
+  answer 400 `incomplete` with `problems` = what is missing (`INCOMPLETE_MESSAGE`, `mayStayIncomplete` in `src/utils/cardReceipts.ts`); the form's button is
+  always **Send for approval** and shows what's missing. The one exception is a receipt already waiting / approved with no receipt on it (a statement refund
+  or fee row, an Admin's own charge: "admins don't need receipts"). Add several saves only the complete rows; an incomplete one stays open with its
+  missing fields marked (`asked`, `saveAll` answers how many were held back). Old `draft` rows stay readable and **Finish it** (To do, Statements,
+  reminders still know the status); nothing makes a new one. Not done: sending old drafts back (owner chose to keep them, finish-only).
+- **Waiting for approval → Approved**, or **Sent back** with a comment.
   Complete = a receipt or a **lost-receipt reason**, a category, and the
   category's own fields (customer, and a **note** when the category requires one — 2026-11-23: a category's
   "Required on every receipt" ticks are Customer and Note; Who attended and Business purpose were removed, old receipts keep
