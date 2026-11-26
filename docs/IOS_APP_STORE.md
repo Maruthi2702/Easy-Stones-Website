@@ -65,7 +65,7 @@ the user enters; answer **Purchases / Other Financial Info** if Apple's wording 
 > background location collection, camera capture for receipts / business cards / slab tags, and push notifications. It is
 > distributed unlisted.
 >
-> **Staff demo:** ▶ username / password. After sign-in the app shows a consent screen; accepting triggers iOS's location prompt.
+> **Staff demo:** username `app.review`, password ▶ (type it into App Store Connect, not here). After sign-in the app shows a consent screen; accepting triggers iOS's location prompt.
 > Choose "Allow While Using", then "Change to Always Allow" when iOS offers it. Location is read in the background only between
 > 7 AM and 6 PM on the user's workdays, for the user's manager (managers see their team's location and last-seen time; the user's
 > own record of when they agreed is kept). Background location is essential to this feature, and it stops outside those hours.
