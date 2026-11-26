@@ -13,9 +13,7 @@ current rules when you reach it. **Owner steps are marked ▶.**
    native bridge, `phoneOwns` consent and consent version 4. (A local `main` branch can be stale — compare with `origin/main`.)
 2. **Migrations on Render:** `npm run pg:migrate -- --apply` (location tables `0017`, `0019`, `0029`; push devices `0018`; anything
    newer) — the app's location and push features need them.
-3. ▶ **Consent wording sign-off.** `CONSENT_VERSION` is 4 and the owner chose a one-line text (`consentBody`): "Allow Easy Surfaces to use
-   your location during work hours to record Visits and Resources, and to schedule your day." HR / legal signed off on version 2
-   (2026-11-21); get the current wording and the geofence restart (`mobile/src/collector/wake.ts`) read again.
+3. ✔ **Consent wording sign-off — done** (owner, 2026-11-26: HR / legal approved consent version 4 and the geofence restart).
 4. ▶ **Make two review logins** (never use a real person's): a staff login whose role has **Track location** and a few pages, and a
    supplier login with one sample PO. Put them in the review notes below.
 5. ▶ **Icon:** replace `mobile/assets/icon.png` (1024 × 1024, no transparency) if the mark is soft; check `mobile/assets/` too.
