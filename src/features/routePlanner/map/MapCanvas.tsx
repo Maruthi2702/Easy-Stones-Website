@@ -178,7 +178,7 @@ const MapCanvas = ({
             {loading && <div className="rpv2-badge">Loading customers…</div>}
             {!loading && !error && pinsCount === 0 && (
                 <div className="rpv2-badge rpv2-badge-warn">
-                    No customer has coordinates yet — run <code>node scripts/geocode-customers.ts --apply</code>
+                    No customers to show on the map. Pick reps in Filters.
                 </div>
             )}
             {leadError && <div className="rpv2-badge rpv2-badge-warn">{leadError}</div>}
