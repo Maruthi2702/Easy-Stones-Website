@@ -17,6 +17,7 @@ export type RawScan = {
   merchant: string;
   total: string;
   subtotal: string;
+  fees: string;
   tax: string;
   tip: string;
   category: string;
@@ -29,6 +30,7 @@ export type ReceiptScan = {
   merchant: string;
   totalCents: number | null;
   subtotalCents: number | null;
+  feesCents: number | null;
   taxCents: number | null;
   tipCents: number | null;
   category: string;
@@ -43,13 +45,14 @@ export function scanSchema(categories: ScanCategory[]) {
   return {
     type: 'object',
     additionalProperties: false,
-    required: ['isReceipt', 'date', 'merchant', 'total', 'subtotal', 'tax', 'tip', 'category'],
+    required: ['isReceipt', 'date', 'merchant', 'total', 'subtotal', 'fees', 'tax', 'tip', 'category'],
     properties: {
       isReceipt: { type: 'boolean', description: 'false if this is not a receipt, invoice or bill for a purchase.' },
       date: { type: 'string', description: 'The purchase date as YYYY-MM-DD; "" if not printed.' },
       merchant: { type: 'string', description: 'The business paid, as people know it (e.g. "Chevron", "Home Depot"); "" if unknown.' },
       total: money,
       subtotal: money,
+      fees: { type: 'string', description: 'All fees added to the bill other than tax and tip, added together (delivery charge, service fee, booking fee); "" if none.' },
       tax: money,
       tip: money,
       category: { type: 'string', enum: [...names, ''], description: 'The best matching category name, or "" if none clearly fits.' }
@@ -64,6 +67,7 @@ export function scanPrompt(categories: ScanCategory[], today: string): string {
     'Read this company credit-card receipt and fill in the fields.',
     `Today is ${today}. Dates on US receipts are month first (10/03/26 is 2026-10-03).`,
     'total = the final amount charged to the card. If a tip is written in, include it; if the tip line is blank (a bill before the tip), total is the amount due and tip is "".',
+    'subtotal = the items before fees, tax and tip. fees = delivery charge + service fee + any other added fee, summed ("" when there are none); total should equal subtotal + fees + tax + tip.',
     'Use "" for anything that is not printed or that you cannot read with confidence. Never guess a number.',
     'Ignore card numbers, names and loyalty numbers printed on the receipt.',
     'category: choose from this list only when it clearly fits, else "":',
@@ -107,6 +111,7 @@ export function cleanScan(raw: unknown, { categories, today }: { categories: Sca
     merchant,
     totalCents: money(r.total),
     subtotalCents: money(r.subtotal),
+    feesCents: money(r.fees),
     taxCents: money(r.tax),
     tipCents: money(r.tip),
     category: shown.has(category) ? category : ''
@@ -115,9 +120,9 @@ export function cleanScan(raw: unknown, { categories, today }: { categories: Sca
 
 /** True when the reading found nothing worth filling in. */
 export const scanIsEmpty = (s: ReceiptScan) =>
-  !s.date && !s.merchant && s.totalCents == null && s.subtotalCents == null && s.taxCents == null && s.tipCents == null && !s.category;
+  !s.date && !s.merchant && s.totalCents == null && s.subtotalCents == null && s.feesCents == null && s.taxCents == null && s.tipCents == null && !s.category;
 
-export type ScanFillable = { date: string; merchant: string; total: string; subtotal: string; tax: string; tip: string; category: string };
+export type ScanFillable = { date: string; merchant: string; total: string; subtotal: string; fees: string; tax: string; tip: string; category: string };
 export type ScanField = keyof ScanFillable;
 
 /**
@@ -138,13 +143,14 @@ export function fillFromScan<V extends ScanFillable>(values: V, scan: ReceiptSca
   put('merchant', scan.merchant, !values.merchant.trim());
   put('total', centsText(scan.totalCents), !values.total.trim());
   put('subtotal', centsText(scan.subtotalCents), !values.subtotal.trim());
+  put('fees', centsText(scan.feesCents), !values.fees.trim());
   put('tax', centsText(scan.taxCents), !values.tax.trim());
   put('tip', centsText(scan.tipCents), !values.tip.trim());
   put('category', scan.category, !values.category);
   return { values: next, filled };
 }
 
-const FIELD_WORDS: Record<ScanField, string> = { date: 'date', merchant: 'merchant', total: 'total', subtotal: 'subtotal', tax: 'tax', tip: 'tip', category: 'category' };
+const FIELD_WORDS: Record<ScanField, string> = { date: 'date', merchant: 'merchant', total: 'total', subtotal: 'subtotal', fees: 'fees', tax: 'tax', tip: 'tip', category: 'category' };
 
 /** The line under the receipt after a reading, e.g. "Filled in the date, merchant and total from the receipt. Check them." */
 export function scanLine(filled: ScanField[]): string {

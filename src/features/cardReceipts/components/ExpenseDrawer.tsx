@@ -259,6 +259,7 @@ export default function ExpenseDrawer({
             </dl>
             <dl className="ccr-sum">
               {e.subtotalCents != null ? <Row label="Subtotal">{formatMoney(e.subtotalCents)}</Row> : null}
+              {e.feesCents != null ? <Row label="Fees">{formatMoney(e.feesCents)}</Row> : null}
               {e.taxCents != null ? <Row label="Tax">{formatMoney(e.taxCents)}</Row> : null}
               {e.tipCents != null ? <Row label="Tip">{formatMoney(e.tipCents)}</Row> : null}
               <div className={`ccr-row is-total${isBigReceipt(e.cents) ? ' is-big' : ''}`}><dt>Total</dt><dd title={isBigReceipt(e.cents) ? '$150 and up' : undefined}>{formatMoney(e.cents)}</dd></div>

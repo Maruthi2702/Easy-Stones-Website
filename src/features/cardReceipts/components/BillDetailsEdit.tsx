@@ -15,8 +15,9 @@ type Props = {
   warnings?: readonly string[];
 };
 
-const MONEY: { key: 'subtotal' | 'tax' | 'tip'; label: string }[] = [
+const MONEY: { key: 'subtotal' | 'fees' | 'tax' | 'tip'; label: string }[] = [
   { key: 'subtotal', label: 'Subtotal' },
+  { key: 'fees', label: 'Fees' },
   { key: 'tax', label: 'Tax' },
   { key: 'tip', label: 'Tip' }
 ];
@@ -24,7 +25,7 @@ const MONEY: { key: 'subtotal' | 'tax' | 'tip'; label: string }[] = [
 /**
  * The "Edit bill details" screen the pencil on the Bill details card opens
  * (inside the same FormModal): merchant, date, the total charged to the card,
- * and the optional subtotal, tax and tip. Total is what was charged — the
+ * and the optional subtotal, fees (delivery charge, service fee), tax and tip. Total is what was charged — the
  * rest are for the approver's information; when they don't add up to the
  * total a line says so (never blocks: a receipt can carry a discount or fee).
  */
@@ -51,7 +52,7 @@ export default function BillDetailsEdit({ values, errors, today, set, fromBank =
         </FormRow>
       </FormSection>
       <FormSection>
-        <div className="ccr-row-3">
+        <div className="ccr-row-4">
           {MONEY.map(({ key, label }) => (
             <FormField key={key} name={key} id={`ccr-${key}`} label={label} error={errors[key]}>
               <div className="ccr-money"><span aria-hidden="true">$</span>

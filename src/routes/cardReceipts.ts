@@ -148,7 +148,7 @@ const expenseView = (e: Loose, viewer: ApprovalViewer, holderRole = '', issuer =
   };
   return {
     id: String(e._id), userId: e.userId, holderName: e.holderName, holderRole, cardId: e.cardId, cardLabel: e.cardLabel, issuer: issuer || 'amex', location: e.location,
-    date: e.date, merchant: e.merchant, cents: e.cents, subtotalCents: e.subtotalCents ?? null, taxCents: e.taxCents ?? null, tipCents: e.tipCents ?? null,
+    date: e.date, merchant: e.merchant, cents: e.cents, subtotalCents: e.subtotalCents ?? null, feesCents: e.feesCents ?? null, taxCents: e.taxCents ?? null, tipCents: e.tipCents ?? null,
     category: e.category || '', subcategory: e.subcategory || '', customerId: e.customerId || '', customerName: e.customerName || '', attendees: e.attendees || [],
     purpose: e.purpose || '', note: e.note || '', recurring: Boolean(e.recurring), receiptUrl: e.receiptUrl || '', lostReason: e.lostReason || '',
     /** '' for a receipt; refund / fee / refunded_charge for a row made from a bank statement line (src/utils/statementRows.ts). */
@@ -729,7 +729,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
   });
 
   const cleanOf = (e: Loose): CleanExpense => ({
-    date: e.date, merchant: e.merchant, cents: e.cents, subtotalCents: e.subtotalCents ?? null, taxCents: e.taxCents ?? null,
+    date: e.date, merchant: e.merchant, cents: e.cents, subtotalCents: e.subtotalCents ?? null, feesCents: e.feesCents ?? null, taxCents: e.taxCents ?? null,
     tipCents: e.tipCents ?? null, category: e.category || '', subcategory: e.subcategory || '', customerId: e.customerId || '', customerName: e.customerName || '',
     attendees: e.attendees || [], purpose: e.purpose || '', note: e.note || '', recurring: Boolean(e.recurring),
     receiptUrl: e.receiptUrl || '', lostReason: e.lostReason || ''
@@ -1044,7 +1044,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     // The receipt's own fields stay as they are: only what Accounting fills in comes from the request.
     const before = cleanOf(expense);
     const { value, problems } = cleanExpense({
-      date: before.date, merchant: before.merchant, total: centsText(before.cents), subtotal: centsText(before.subtotalCents), tax: centsText(before.taxCents),
+      date: before.date, merchant: before.merchant, total: centsText(before.cents), subtotal: centsText(before.subtotalCents), fees: centsText(before.feesCents), tax: centsText(before.taxCents),
       tip: centsText(before.tipCents), receiptUrl: before.receiptUrl, lostReason: before.lostReason, attendees: before.attendees, purpose: before.purpose,
       recurring: before.recurring, category: body.category, subcategory: body.subcategory, customerId: body.customerId, customerName: '', note: body.note
     }, { today: todayOf(), categories: allowed, currentSubcategory: expense.subcategory || '', currentLostReason: expense.lostReason || '' });

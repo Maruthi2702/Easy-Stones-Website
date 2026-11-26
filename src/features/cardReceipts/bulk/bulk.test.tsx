@@ -21,7 +21,7 @@ const CATEGORIES = [
 const photo = (name: string) => new File([name], name, { type: 'image/jpeg' });
 const sha = (text: string) => createHash('sha256').update(text).digest('hex');
 const FILE_NO = new Map(['a.jpg', 'b.jpg', 'c.jpg'].map((f, i) => [sha(f), i + 1]));
-const scanFor = (merchant: string, cents: number) => ({ scan: { isReceipt: true, date: '2026-10-03', merchant, totalCents: cents, subtotalCents: null, taxCents: null, tipCents: null, category: '' } });
+const scanFor = (merchant: string, cents: number) => ({ scan: { isReceipt: true, date: '2026-10-03', merchant, totalCents: cents, subtotalCents: null, feesCents: null, taxCents: null, tipCents: null, category: '' } });
 
 const deps = () => {
   const upload = vi.fn(async (_data: string, opts?: { hash?: string }): Promise<UploadResult> =>

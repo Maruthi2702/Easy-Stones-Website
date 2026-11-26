@@ -94,6 +94,10 @@ export default defineConfig({
   // their @vitest-environment directive. Browser journeys use Playwright.
   test: {
     include: ['src/**/*.test.{js,ts,tsx}', 'mobile/src/**/*.test.ts'],
+    // Tests on an in-memory Postgres (PGlite) apply every migration in beforeEach; with 40+ migrations that passes the
+    // default 10 s hook limit when files run side by side (2026-11-26: 23 false failures in the receipts suites).
+    hookTimeout: 60_000,
+    testTimeout: 60_000,
     coverage: {
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}', 'server.ts'],

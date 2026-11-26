@@ -77,7 +77,7 @@ beforeAll(async () => {
     const base = { holderName: 'Maruthi Ponugupati', cardId: cardOf.rep, cardLabel: 'MARU92069', location: 'Seattle', category: 'travel_lunch', customerId: '', customerName: '', attendees: [], purpose: '', note: '', recurring: false,
       receiptUrl: 'https://res.cloudinary.com/test/CardReceipts/a.webp', lostReason: '', createdBy: 'Maruthi Ponugupati', voidedAt: null, voidedBy: '', voidReason: '' };
     await db.collection('cardexpenses').insertMany([
-      { ...base, _id: new mongoose.Types.ObjectId(seeded.waiting), userId: rep, date: '2026-10-03', month: '2026-10', merchant: "McDonald's, Kent", cents: 1432, subtotalCents: 1297, taxCents: 135, tipCents: null, status: 'waiting',
+      { ...base, _id: new mongoose.Types.ObjectId(seeded.waiting), userId: rep, date: '2026-10-03', month: '2026-10', merchant: "McDonald's, Kent", cents: 1432, subtotalCents: 1297, feesCents: 250, taxCents: 135, tipCents: null, status: 'waiting',
         approval: null, sentBack: null, createdAt: at('2026-10-03T19:00:00Z'), updatedAt: at('2026-10-03T19:00:00Z'), history: [{ at: at('2026-10-03T19:00:00Z'), by: 'Maruthi Ponugupati', action: 'added', changes: 'sent for approval' }] },
       { ...base, _id: new mongoose.Types.ObjectId(seeded.approved), userId: rep, date: '2026-10-05', month: '2026-10', merchant: 'Shell', category: 'fuel', cents: 6120, status: 'approved',
         approval: { by: manager, byName: 'Dana Whitfield', at: at('2026-10-06T16:00:00Z'), comment: 'OK' }, sentBack: null, createdAt: at('2026-10-05T19:00:00Z'), updatedAt: at('2026-10-06T16:00:00Z'),

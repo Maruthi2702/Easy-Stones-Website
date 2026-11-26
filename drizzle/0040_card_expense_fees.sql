@@ -1,0 +1,1 @@
+ALTER TABLE "card_expenses" ADD COLUMN "fees_cents" bigint;

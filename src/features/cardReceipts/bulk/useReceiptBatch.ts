@@ -11,7 +11,7 @@ import type { Category, Expense } from '../types';
 
 export type RowValues = Required<Omit<ExpenseInput, 'recurring'>> & { recurring: boolean };
 export const blankRow = (today: string): RowValues => ({
-  date: today, merchant: '', total: '', subtotal: '', tax: '', tip: '', category: '', subcategory: '', customerId: '', customerName: '',
+  date: today, merchant: '', total: '', subtotal: '', fees: '', tax: '', tip: '', category: '', subcategory: '', customerId: '', customerName: '',
   attendees: [], purpose: '', note: '', recurring: false, receiptUrl: '', lostReason: ''
 });
 

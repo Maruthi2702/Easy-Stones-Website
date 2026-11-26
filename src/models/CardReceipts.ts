@@ -83,6 +83,7 @@ const cardExpenseSchema = new mongoose.Schema({
   merchant: { type: String, required: true },
   cents: { type: Number, required: true },
   subtotalCents: { type: Number, default: null },
+  feesCents: { type: Number, default: null },
   taxCents: { type: Number, default: null },
   tipCents: { type: Number, default: null },
   category: { type: String, default: '' },

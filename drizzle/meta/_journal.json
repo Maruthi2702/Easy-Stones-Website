@@ -281,6 +281,13 @@
       "when": 1795644295848,
       "tag": "0039_rep_sales",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1795720957049,
+      "tag": "0040_card_expense_fees",
+      "breakpoints": true
     }
   ]
 }

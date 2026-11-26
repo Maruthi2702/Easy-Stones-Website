@@ -13,7 +13,7 @@ const CATEGORIES = [
 ];
 const fromReport = (o: Record<string, unknown> = {}) => ({
   id: 'x1', userId: 'u1', holderName: 'Krish', cardId: 'c1', cardLabel: 'MARU92069', location: 'Seattle', date: '2026-11-02',
-  merchant: 'RENDER.COM SAN FRANCISCO CA', cents: 700, subtotalCents: null, taxCents: null, tipCents: null, category: '', subcategory: '',
+  merchant: 'RENDER.COM SAN FRANCISCO CA', cents: 700, subtotalCents: null, feesCents: null, taxCents: null, tipCents: null, category: '', subcategory: '',
   customerId: '', customerName: '', attendees: [], purpose: '', note: '', recurring: false, receiptUrl: '', lostReason: '', status: 'waiting',
   approval: null, sentBack: null, voided: null, createdAt: '2026-11-24T13:53:00Z', updatedAt: '2026-11-24T13:53:00Z', history: [], mine: true, canDecide: false,
   actions: { approve: null, sendBack: false, ask: false, withdrawAsk: false, answer: false, reopen: false, fillDetails: false }, chips: [], ...o
@@ -59,7 +59,7 @@ describe('the choice for an existing expense', () => {
 describe('confirming the category after the upload', () => {
   const open = async (category: string, onSave = vi.fn(async (_body: unknown) => undefined)) => {
     const upload = vi.fn(() => later({ url: '/api/card-receipts/files/pdf_1700000000000_aaaaaaaaaaaaaaaaaaaaaaaa.pdf' }));
-    const scan = vi.fn(() => later({ scan: { isReceipt: true, date: '', merchant: '', totalCents: null, subtotalCents: null, taxCents: null, tipCents: null, category } }));
+    const scan = vi.fn(() => later({ scan: { isReceipt: true, date: '', merchant: '', totalCents: null, subtotalCents: null, feesCents: null, taxCents: null, tipCents: null, category } }));
     render(<ExpenseForm expense={fromReport() as never} initialFile={pdf()} confirmCategory cardLabel="MARU92069" holderName="Krish" today="2026-11-26"
       categories={CATEGORIES as never} upload={upload} scan={scan} onSave={onSave} onClose={() => {}} />);
     await settle();

@@ -22,20 +22,20 @@ import type { AddableHolder, Card, Category, Expense } from '../types';
 type Values = Required<Omit<ExpenseInput, 'recurring'>> & { recurring: boolean };
 
 const blank = (today: string): Values => ({
-  date: today, merchant: '', total: '', subtotal: '', tax: '', tip: '', category: '', subcategory: '', customerId: '', customerName: '',
+  date: today, merchant: '', total: '', subtotal: '', fees: '', tax: '', tip: '', category: '', subcategory: '', customerId: '', customerName: '',
   attendees: [], purpose: '', note: '', recurring: false, receiptUrl: '', lostReason: ''
 });
 const fromExpense = (e: Expense): Values => ({
-  date: e.date, merchant: e.merchant, total: centsText(e.cents), subtotal: centsText(e.subtotalCents), tax: centsText(e.taxCents),
+  date: e.date, merchant: e.merchant, total: centsText(e.cents), subtotal: centsText(e.subtotalCents), fees: centsText(e.feesCents), tax: centsText(e.taxCents),
   tip: centsText(e.tipCents), category: e.category, subcategory: e.subcategory, customerId: e.customerId, customerName: e.customerName, attendees: e.attendees,
   purpose: e.purpose, note: e.note, recurring: e.recurring, receiptUrl: e.receiptUrl, lostReason: e.lostReason
 });
 
-const LABELS = { receipt: 'Receipt', lostReason: 'Why there’s no receipt', date: 'Date', merchant: 'Merchant', total: 'Total', subtotal: 'Subtotal', tax: 'Tax', tip: 'Tip', category: 'Category', subcategory: 'Sub-category', customer: 'Customer', note: 'Note' };
+const LABELS = { receipt: 'Receipt', lostReason: 'Why there’s no receipt', date: 'Date', merchant: 'Merchant', total: 'Total', subtotal: 'Subtotal', fees: 'Fees', tax: 'Tax', tip: 'Tip', category: 'Category', subcategory: 'Sub-category', customer: 'Customer', note: 'Note' };
 /** The fields on the Edit bill details screen (the pencil); the rest are on the form itself. */
-const BILL_FIELDS: readonly BillField[] = ['merchant', 'date', 'total', 'subtotal', 'tax', 'tip'];
+const BILL_FIELDS: readonly BillField[] = ['merchant', 'date', 'total', 'subtotal', 'fees', 'tax', 'tip'];
 const isBillField = (k: string): k is BillField => (BILL_FIELDS as readonly string[]).includes(k);
-const billOf = (v: Values): BillValues => ({ merchant: v.merchant, date: v.date, total: v.total, subtotal: v.subtotal, tax: v.tax, tip: v.tip });
+const billOf = (v: Values): BillValues => ({ merchant: v.merchant, date: v.date, total: v.total, subtotal: v.subtotal, fees: v.fees, tax: v.tax, tip: v.tip });
 const pick = (p: ExpenseProblems, bill: boolean): ExpenseProblems =>
   Object.fromEntries(Object.entries(p).filter(([k]) => isBillField(k) === bill)) as ExpenseProblems;
 
@@ -74,9 +74,9 @@ export type ExpenseFormProps = {
 /**
  * Add / Edit receipt, on the form template (FORM_TEMPLATE.md), laid out like
  * Splitwise's bill screen (owner, 2026-11-20): the Bill details card (photo,
- * merchant, total, subtotal, tax, tip — BillCard), then the category (and what
+ * merchant, total, subtotal, fees, tax, tip — BillCard), then the category (and what
  * that category asks for) and a note. The pencil opens Edit bill details in
- * the same window (BillDetailsEdit): merchant, date, total, subtotal, tax, tip.
+ * the same window (BillDetailsEdit): merchant, date, total, subtotal, fees, tax, tip.
  *
  * The photo or PDF uploads the moment it's picked; Save sends its address.
  * Date, merchant and total are needed to save at all; until the receipt (or a

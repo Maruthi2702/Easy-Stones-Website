@@ -232,7 +232,7 @@ async function createMissingRows(tx: Conn, references: string[], by: Actor, now:
     const doc = {
       _id: id, userId: r.userId, holderName: r.displayName || r.username || '', cardId: r.cardId, cardLabel: r.cardLabel,
       location: r.location || r.cardLocation || '', date: r.day, month: r.day.slice(0, 7), merchant: merchantOf(r.description, issuerLabel(r.issuer)), cents: r.cents,
-      subtotalCents: null, taxCents: null, tipCents: null, category: '', customerId: '', customerName: '', attendees: [],
+      subtotalCents: null, feesCents: null, taxCents: null, tipCents: null, category: '', customerId: '', customerName: '', attendees: [],
       purpose: '', note: approvedNote ?? '', recurring: false, receiptUrl: '', lostReason: '', statementKind: kind ?? '',
       status: kind ? 'waiting' : approvedNote ? 'approved' : adminWaits ? 'waiting' : 'missing', sentBack: null,
       approval: approvedNote ? { by: by.id, byName: by.name, at: now, comment: approvedNote } : null,

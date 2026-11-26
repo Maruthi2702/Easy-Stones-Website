@@ -13,7 +13,7 @@ const CATEGORIES = [
 ];
 const exp = (id: string, o: Record<string, unknown> = {}) => ({
   id, userId: 'u1', holderName: 'Maruthi Ponugupati', cardId: 'c1', cardLabel: 'MARU92069', location: 'Seattle', date: '2026-10-03',
-  merchant: "McDonald's", cents: 1432, subtotalCents: 1297, taxCents: 135, tipCents: null, category: 'travel_lunch', customerId: '', customerName: '',
+  merchant: "McDonald's", cents: 1432, subtotalCents: 1297, feesCents: null, taxCents: 135, tipCents: null, category: 'travel_lunch', customerId: '', customerName: '',
   attendees: [], purpose: '', note: '', recurring: false, receiptUrl: 'https://res.cloudinary.com/x/r.webp', lostReason: '', status: 'approved',
   approval: null, sentBack: null, voided: null, createdAt: '2026-10-03T17:21:00Z', updatedAt: '2026-10-03T17:21:00Z', history: [], mine: true, canDecide: false, ...o
 });
@@ -737,7 +737,7 @@ describe('checks that never block (2026-11-24)', () => {
     await show(['use_card_receipts', 'approve_card_receipts']);
     fireEvent.click(screen.getByRole('tab', { name: /Waiting for me/ }));
     fireEvent.click(screen.getByLabelText(/Open Home Depot/));
-    expect(text()).toContain('Subtotal, tax and tip add up to $14.32, not the total of $189.00. Check them.');
+    expect(text()).toContain('Subtotal, fees, tax and tip add up to $14.32, not the total of $189.00. Check them.');
     // Still approvable: it's a check, not a block.
     expect((screen.getByRole('button', { name: 'Approve receipt' }) as HTMLButtonElement).disabled).toBe(false);
   });

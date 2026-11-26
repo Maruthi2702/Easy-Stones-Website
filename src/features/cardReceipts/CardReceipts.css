@@ -389,7 +389,7 @@ body.light-theme-active .ccr-preview { background: var(--fm-card); }
 .ccr-money { position: relative; }
 .ccr-money > span { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-weight: 700; color: var(--fm-mut); pointer-events: none; }
 .ccr-money .fm-input { padding-left: 26px; font-variant-numeric: tabular-nums; }
-.ccr-row-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.ccr-row-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .ccr-people { display: flex; flex-wrap: wrap; gap: 8px; }
 .ccr-person { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 6px 0 12px; border-radius: 16px; background: var(--fm-chip-bg, rgba(255, 255, 255, 0.07)); color: var(--fm-label); font-size: 14px; }
 .ccr-person button { width: 22px; height: 22px; border-radius: 50%; border: 0; background: transparent; color: var(--fm-mut); cursor: pointer; display: grid; place-items: center; }
@@ -447,7 +447,7 @@ body.light-theme-active .ccr-preview { background: var(--fm-card); }
   .ccr-fab { right: 18px; bottom: calc(20px + var(--app-bottom-h, 0px)); }
   .ccr-ro { min-height: 46px; font-size: 16px; }
   .ccr-more-btn { width: 44px; height: 44px; }
-  .ccr-row-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ccr-row-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ccr-cat-row { grid-template-columns: 32px minmax(0, 1fr) 44px; }
   .ccr-cat-row .ccr-col-wide, .ccr-cat-row .ccr-cat-shown { display: none; }
 }

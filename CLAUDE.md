@@ -1522,6 +1522,11 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   when subtotal + tax + tip (a missing tax / tip is 0; nothing is checked without a subtotal) isn't the total, on the bill
   card, the Edit bill details screen and the opened receipt (`billMismatch` / `typedBillMismatch` in `cardReceipts.ts`,
   tested). It never blocks a save or an approval (a receipt can carry a discount or fee).
+  **Fees (2026-11-26, on `feat/receipt-fees`):** a delivery-app receipt (delivery charge + service fee) used to warn every time, so the
+  bill has an optional **Fees** amount beside subtotal / tax / tip (`fees_cents`, migration `0040`; MongoDB `feesCents`) and the check is
+  subtotal + fees + tax + tip. Fees is typed as one sum (2.99 + 6.18 → 9.17); the receipt reader fills it the same way
+  (`fees` in `receiptScan.ts`'s schema and prompt). Information only, like tax and tip: the total is still what the card was charged,
+  and the Excel / PDF exports don't carry it. **Run `npm run pg:migrate -- --apply` on Render for `0040`** before this ships.
 - **The same photo twice** (2026-11-24, owner's ask): each upload carries a **fingerprint**, the SHA-256 of the file as
   picked (`receiptFingerprint.ts`; the server hashes the bytes it got when the browser sends none). `POST /attachments`
   keeps it in the stored file's metadata (`sha256`) and answers `duplicate` when a live (not voided) receipt already has it

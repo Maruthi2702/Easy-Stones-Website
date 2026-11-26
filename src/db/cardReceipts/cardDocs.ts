@@ -29,7 +29,7 @@ export function expenseDoc(e: typeof cardExpenses.$inferSelect, locationName: st
     // Null only when the person or card was removed since; MongoDB kept the old id as text.
     userId: e.userId ?? '', holderName: e.holderName, cardId: e.cardId ?? '', cardLabel: e.cardLabel,
     location: locationName ?? '', date: e.day, month: e.month, merchant: e.merchant, cents: e.cents,
-    subtotalCents: e.subtotalCents, taxCents: e.taxCents, tipCents: e.tipCents,
+    subtotalCents: e.subtotalCents, feesCents: e.feesCents, taxCents: e.taxCents, tipCents: e.tipCents,
     category: e.category ?? '', subcategory: e.subcategory, customerId: e.customerId ?? '', customerName: e.customerName,
     attendees: e.attendees, purpose: e.purpose, note: e.note, recurring: e.recurring,
     receiptUrl: e.receiptUrl, receiptHash: e.receiptHash, statementKind: e.statementKind, lostReason: e.lostReason, status: e.status,

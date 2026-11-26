@@ -119,7 +119,7 @@ export function cardExpenseRowsOf(d: Loose, ref: ReferenceIndex, links: ExpenseL
       cardId: linkOf(c, 'card_id', d.cardId, links.cardIds, 'card'), cardLabel: textOf(d.cardLabel),
       locationId: locationIdOf(c, 'location_id', d.location, ref.locationIdByName), day: expenseDay, month: textOf(d.month),
       merchant: textOf(d.merchant), cents, subtotalCents: intOf(c, 'subtotal_cents', d.subtotalCents),
-      taxCents: intOf(c, 'tax_cents', d.taxCents), tipCents: intOf(c, 'tip_cents', d.tipCents), category, subcategory: category ? textOf(d.subcategory) : '',
+      feesCents: intOf(c, 'fees_cents', d.feesCents), taxCents: intOf(c, 'tax_cents', d.taxCents), tipCents: intOf(c, 'tip_cents', d.tipCents), category, subcategory: category ? textOf(d.subcategory) : '',
       customerId: linkOf(c, 'customer_id', d.customerId, links.customerIds, 'customer'), customerName: textOf(d.customerName),
       attendees: stringsOf(d.attendees), purpose: textOf(d.purpose), note: textOf(d.note), recurring: boolOf(d.recurring),
       receiptUrl: textOf(d.receiptUrl), receiptHash: textOf(d.receiptHash), statementKind: textOf(d.statementKind), lostReason: textOf(d.lostReason), status,

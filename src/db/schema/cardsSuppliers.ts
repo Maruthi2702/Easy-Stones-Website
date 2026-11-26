@@ -75,6 +75,8 @@ export const cardExpenses = pgTable('card_expenses', {
   merchant: text('merchant').notNull(),
   cents: bigint('cents', { mode: 'number' }).notNull(),
   subtotalCents: bigint('subtotal_cents', { mode: 'number' }),
+  /** Delivery charge, service fee and the like, added up (2026-11-26); information only, like tax and tip. */
+  feesCents: bigint('fees_cents', { mode: 'number' }),
   taxCents: bigint('tax_cents', { mode: 'number' }),
   tipCents: bigint('tip_cents', { mode: 'number' }),
   /** Null until a category is picked (a draft). */

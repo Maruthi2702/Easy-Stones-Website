@@ -20,7 +20,7 @@ const fakeScanner = (result: Awaited<ReturnType<ReceiptScanner['scan']>>): Recei
   model: 'test',
   scan: async (source: ReceiptSource, opts) => { scanned(source, opts); return result; }
 });
-const READ = { isReceipt: true, date: '2026-11-18', merchant: 'Chevron', totalCents: 6497, subtotalCents: null, taxCents: null, tipCents: null, category: 'fuel' };
+const READ = { isReceipt: true, date: '2026-11-18', merchant: 'Chevron', totalCents: 6497, subtotalCents: null, feesCents: null, taxCents: null, tipCents: null, category: 'fuel' };
 
 const PRIV = 'img_1700000000000_0123456789abcdef01234567.webp';
 const privateFiles = new Map<string, { body: Buffer; contentType: string; metadata: Record<string, string> }>();

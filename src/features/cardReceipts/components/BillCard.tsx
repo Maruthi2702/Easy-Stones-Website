@@ -3,7 +3,7 @@ import { formatMoney, parseCents } from '../../../utils/cardReceipts';
 import { isPdfUrl } from '../cardReceiptsView';
 import WarnLines from './WarnLines';
 
-export type BillValues = { merchant: string; date: string; total: string; subtotal: string; tax: string; tip: string };
+export type BillValues = { merchant: string; date: string; total: string; subtotal: string; fees: string; tax: string; tip: string };
 export type BillField = keyof BillValues;
 
 const money = (typed: string) => {
@@ -35,12 +35,12 @@ type Props = BillValues & {
 /**
  * The "Bill details" card at the top of Add / Edit receipt (owner's pick,
  * 2026-11-20, from Splitwise's bill screen): the receipt's photo, who was
- * paid and the total, then subtotal, tax and tip, then the total again. It is
+ * paid and the total, then subtotal, fees, tax and tip, then the total again. It is
  * read-only — the pencil (or "+ Add tip") opens the edit screen
  * (BillDetailsEdit), so the form itself stays short: this card, the category
  * and a note.
  */
-export default function BillCard({ merchant, date, total, subtotal, tax, tip, receiptUrl, lost, uploading, note, noteTone, viewingLarge, warnings = [], onPhoto, onEdit }: Props) {
+export default function BillCard({ merchant, date, total, subtotal, fees, tax, tip, receiptUrl, lost, uploading, note, noteTone, viewingLarge, warnings = [], onPhoto, onEdit }: Props) {
   const day = dayLabel(date);
   const totalText = money(total);
   const blank = !merchant.trim() && !totalText;
@@ -69,6 +69,7 @@ export default function BillCard({ merchant, date, total, subtotal, tax, tip, re
 
       <dl className="ccr-bill-rows">
         <div><dt>Subtotal</dt><dd>{money(subtotal) || '—'}</dd></div>
+        {money(fees) ? <div><dt>Fees</dt><dd>{money(fees)}</dd></div> : null}
         <div><dt>Tax</dt><dd>{money(tax) || '—'}</dd></div>
         {money(tip) ? <div><dt>Tip</dt><dd>{money(tip)}</dd></div> : null}
       </dl>

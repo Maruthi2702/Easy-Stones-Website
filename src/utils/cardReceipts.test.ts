@@ -280,8 +280,15 @@ describe('billMismatch', () => {
   it('flags parts that don’t add up to the total (a missing tax or tip is 0)', () => {
     expect(billMismatch({ cents: 4320, subtotalCents: 3820, taxCents: 300 })).toEqual({ sum: 4120, total: 4320 });
     expect(billMismatchLine(billMismatch({ cents: 4320, subtotalCents: 3820, taxCents: 300 })))
-      .toBe('Subtotal, tax and tip add up to $41.20, not the total of $43.20. Check them.');
+      .toBe('Subtotal, fees, tax and tip add up to $41.20, not the total of $43.20. Check them.');
     expect(billMismatchLine(null)).toBe('');
+  });
+  it('counts fees: a delivery receipt (Tacoria, 2026-11-25) adds up', () => {
+    // 61.75 + 2.99 delivery + 6.18 service fee + 4.74 tax = 75.66
+    expect(billMismatch({ cents: 7566, subtotalCents: 6175, feesCents: 917, taxCents: 474 })).toBeNull();
+    expect(billMismatch({ cents: 7566, subtotalCents: 6175, taxCents: 474 })).toEqual({ sum: 6649, total: 7566 });
+    expect(typedBillMismatch({ total: '75.66', subtotal: '61.75', fees: '9.17', tax: '4.74', tip: '' })).toBeNull();
+    expect(typedBillMismatch({ total: '75.66', subtotal: '61.75', fees: '', tax: '4.74', tip: '' })).toEqual({ sum: 6649, total: 7566 });
   });
   it('reads the typed form, leaving out what isn’t money yet', () => {
     expect(typedBillMismatch({ total: '43.20', subtotal: '38.20', tax: '3.00', tip: '' })).toEqual({ sum: 4120, total: 4320 });

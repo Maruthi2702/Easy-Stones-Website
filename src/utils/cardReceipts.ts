@@ -227,28 +227,29 @@ export const formatMoney = (cents: number) =>
   `${cents < 0 ? '−' : ''}$${(Math.abs(cents) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /**
- * Subtotal + tax + tip against the total (2026-11-24, owner: warn when they don't add up). Only checked once a
- * subtotal is there; a missing tax or tip counts as 0. A warning only: the total is what the card was charged, and a
- * receipt can carry a discount or fee the bill details don't list. Null when they add up (or there is nothing to check).
+ * Subtotal + fees + tax + tip against the total (2026-11-24, owner: warn when they don't add up; Fees added 2026-11-26 —
+ * a delivery app's delivery charge and service fee made every such receipt warn). Only checked once a subtotal is
+ * there; a missing fees, tax or tip counts as 0. A warning only: the total is what the card was charged, and a receipt
+ * can carry a discount the bill details don't list. Null when they add up (or there is nothing to check).
  */
-export function billMismatch(bill: { cents: number | null | undefined; subtotalCents?: number | null; taxCents?: number | null; tipCents?: number | null }) {
+export function billMismatch(bill: { cents: number | null | undefined; subtotalCents?: number | null; feesCents?: number | null; taxCents?: number | null; tipCents?: number | null }) {
   const whole = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) ? n : null);
   const total = whole(bill.cents);
   const subtotal = whole(bill.subtotalCents);
   if (total == null || subtotal == null) return null;
-  const sum = subtotal + (whole(bill.taxCents) ?? 0) + (whole(bill.tipCents) ?? 0);
+  const sum = subtotal + (whole(bill.feesCents) ?? 0) + (whole(bill.taxCents) ?? 0) + (whole(bill.tipCents) ?? 0);
   return sum === total ? null : { sum, total };
 }
 
 /** The bill details as typed (Add / Edit receipt) → billMismatch; a field that isn't money yet is left out of the check. */
-export function typedBillMismatch(v: { total: string; subtotal: string; tax: string; tip: string }) {
+export function typedBillMismatch(v: { total: string; subtotal: string; fees?: string; tax: string; tip: string }) {
   const cents = (t: string) => { const c = parseCents(t); return c == null || Number.isNaN(c) ? null : c; };
-  return billMismatch({ cents: cents(v.total), subtotalCents: cents(v.subtotal), taxCents: cents(v.tax), tipCents: cents(v.tip) });
+  return billMismatch({ cents: cents(v.total), subtotalCents: cents(v.subtotal), feesCents: cents(v.fees ?? ''), taxCents: cents(v.tax), tipCents: cents(v.tip) });
 }
 
-/** "Subtotal, tax and tip add up to $41.20, not the total of $43.20. Check them." */
+/** "Subtotal, fees, tax and tip add up to $41.20, not the total of $43.20. Check them." */
 export const billMismatchLine = (m: { sum: number; total: number } | null) =>
-  m ? `Subtotal, tax and tip add up to ${formatMoney(m.sum)}, not the total of ${formatMoney(m.total)}. Check them.` : '';
+  m ? `Subtotal, fees, tax and tip add up to ${formatMoney(m.sum)}, not the total of ${formatMoney(m.total)}. Check them.` : '';
 
 export const isMonth = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
 export const monthOf = (day: string) => day.slice(0, 7);
@@ -315,16 +316,16 @@ export function cleanCard(body: Record<string, unknown>, { allowUnassigned = fal
 // ── Expenses ────────────────────────────────────────────────────────────────
 
 export type ExpenseInput = {
-  date: string; merchant: string; total: string; subtotal?: string; tax?: string; tip?: string;
+  date: string; merchant: string; total: string; subtotal?: string; fees?: string; tax?: string; tip?: string;
   category: string; subcategory?: string; customerId?: string; customerName?: string; attendees?: string[]; purpose?: string;
   note?: string; recurring?: boolean; receiptUrl?: string; lostReason?: string;
 };
 export type CleanExpense = {
-  date: string; merchant: string; cents: number; subtotalCents: number | null; taxCents: number | null; tipCents: number | null;
+  date: string; merchant: string; cents: number; subtotalCents: number | null; feesCents: number | null; taxCents: number | null; tipCents: number | null;
   category: string; subcategory: string; customerId: string; customerName: string; attendees: string[]; purpose: string; note: string;
   recurring: boolean; receiptUrl: string; lostReason: string;
 };
-export type ExpenseProblems = Partial<Record<'date' | 'merchant' | 'total' | 'subtotal' | 'tax' | 'tip' | 'category' | 'subcategory' | 'customer' | 'note' | 'receipt' | 'lostReason' | 'card', string>>;
+export type ExpenseProblems = Partial<Record<'date' | 'merchant' | 'total' | 'subtotal' | 'fees' | 'tax' | 'tip' | 'category' | 'subcategory' | 'customer' | 'note' | 'receipt' | 'lostReason' | 'card', string>>;
 
 const text = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max);
 const isReceiptUrl = (v: string) => /^https:\/\//.test(v) || v.startsWith('/uploads/') || Boolean(privateReceiptNameOf(v));
@@ -351,12 +352,13 @@ export function cleanExpense(body: Partial<ExpenseInput> & Record<string, unknow
   const cents = parseCents(body.total);
   if (cents == null) problems.total = 'Enter the total';
   else if (!Number.isFinite(cents) || cents <= 0) problems.total = 'Enter an amount like 14.32';
-  const optional = (key: 'subtotal' | 'tax' | 'tip') => {
+  const optional = (key: 'subtotal' | 'fees' | 'tax' | 'tip') => {
     const c = parseCents(body[key]);
     if (c != null && !Number.isFinite(c)) problems[key] = 'Enter an amount like 1.35';
     return c != null && Number.isFinite(c) ? c : null;
   };
   const subtotalCents = optional('subtotal');
+  const feesCents = optional('fees');
   const taxCents = optional('tax');
   const tipCents = optional('tip');
 
@@ -381,7 +383,7 @@ export function cleanExpense(body: Partial<ExpenseInput> & Record<string, unknow
     .map((a) => text(a, 80)).filter(Boolean).slice(0, 30);
   const fields = fieldsOf(category, subcategory);
   const value: CleanExpense = {
-    date, merchant, cents: Number(cents), subtotalCents, taxCents, tipCents,
+    date, merchant, cents: Number(cents), subtotalCents, feesCents, taxCents, tipCents,
     category: category ? category.name : '', subcategory,
     customerId: fields.customer ? text(body.customerId, 40) : '',
     customerName: fields.customer ? text(body.customerName, 120) : '',
@@ -495,7 +497,7 @@ export const deleteReasonProblem = (reason: unknown) => (String(reason ?? '').tr
 /** Fields that differ, in words, for the history line. */
 export function changeSummary(before: Partial<CleanExpense>, after: CleanExpense) {
   const names: [keyof CleanExpense, string][] = [
-    ['date', 'date'], ['merchant', 'merchant'], ['cents', 'total'], ['subtotalCents', 'subtotal'], ['taxCents', 'tax'],
+    ['date', 'date'], ['merchant', 'merchant'], ['cents', 'total'], ['subtotalCents', 'subtotal'], ['feesCents', 'fees'], ['taxCents', 'tax'],
     ['tipCents', 'tip'], ['category', 'category'], ['subcategory', 'type'], ['customerId', 'customer'], ['attendees', 'who attended'],
     ['purpose', 'purpose'], ['note', 'note'], ['recurring', 'recurring'], ['receiptUrl', 'receipt'], ['lostReason', 'lost-receipt reason']
   ];
@@ -527,7 +529,7 @@ export const mergeableRepeat = (e: { status: string; voided?: unknown }) => !e.v
 /**
  * What the new receipt changes on the saved one, as the body of an ordinary edit (owner's rules): its photo, its total
  * and its category (with that category's type, and its customer when the new one names one) — the merchant stays the
- * one the bank's report gave it, and so do the day, the note, the card and everything else. A subtotal / tax / tip
+ * one the bank's report gave it, and so do the day, the note, the card and everything else. A subtotal / fees / tax / tip
  * read from the new photo come with it; a note is taken only when the saved one has none. With no category on the
  * new receipt the saved one keeps its own. A new lost-receipt reason (no photo) never replaces a photo.
  */
@@ -541,6 +543,7 @@ export function mergeIntoSaved(saved: CleanExpense, incoming: CleanExpense): Exp
     merchant: saved.merchant,
     total: money(incoming.cents),
     subtotal: money(readBill ? incoming.subtotalCents : saved.subtotalCents),
+    fees: money(readBill ? incoming.feesCents : saved.feesCents),
     tax: money(readBill ? incoming.taxCents : saved.taxCents),
     tip: money(readBill ? incoming.tipCents : saved.tipCents),
     category: takeCategory ? incoming.category : saved.category,

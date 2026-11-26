@@ -7,9 +7,9 @@ const categories = [
   { name: 'old_one', label: 'Old one', active: false }
 ];
 const today = '2026-11-20';
-const blankForm = { date: today, merchant: '', total: '', subtotal: '', tax: '', tip: '', category: '' };
+const blankForm = { date: today, merchant: '', total: '', subtotal: '', fees: '', tax: '', tip: '', category: '' };
 const read = (over: Partial<ReceiptScan> = {}): ReceiptScan => ({
-  isReceipt: true, date: '2026-11-18', merchant: 'Chevron', totalCents: 6497, subtotalCents: null, taxCents: null, tipCents: null, category: 'fuel', ...over
+  isReceipt: true, date: '2026-11-18', merchant: 'Chevron', totalCents: 6497, subtotalCents: null, feesCents: null, taxCents: null, tipCents: null, category: 'fuel', ...over
 });
 
 describe('scanSchema / scanPrompt', () => {
@@ -29,8 +29,8 @@ describe('scanSchema / scanPrompt', () => {
 
 describe('cleanScan', () => {
   it('turns a good answer into cents', () => {
-    const s = cleanScan({ isReceipt: true, date: '2026-11-18', merchant: '  Jinya   Ramen ', total: '98.17', subtotal: '80.00', tax: '8.17', tip: '10.00', category: 'customer_lunch' }, { categories, today });
-    expect(s).toEqual({ isReceipt: true, date: '2026-11-18', merchant: 'Jinya Ramen', totalCents: 9817, subtotalCents: 8000, taxCents: 817, tipCents: 1000, category: 'customer_lunch' });
+    const s = cleanScan({ isReceipt: true, date: '2026-11-18', merchant: '  Jinya   Ramen ', total: '98.17', subtotal: '80.00', fees: '', tax: '8.17', tip: '10.00', category: 'customer_lunch' }, { categories, today });
+    expect(s).toEqual({ isReceipt: true, date: '2026-11-18', merchant: 'Jinya Ramen', totalCents: 9817, subtotalCents: 8000, feesCents: null, taxCents: 817, tipCents: 1000, category: 'customer_lunch' });
   });
   it('blanks a date that is not real, in the future, or far back', () => {
     for (const date of ['2026-02-30', '11/18/2026', '2026-11-21', '2025-01-01', '']) {
@@ -41,6 +41,13 @@ describe('cleanScan', () => {
   it('blanks amounts that are not money, zero or negative', () => {
     const s = cleanScan({ total: 'about 40', subtotal: '0.00', tax: '-3.00', tip: '$1,250.50' }, { categories, today });
     expect([s.totalCents, s.subtotalCents, s.taxCents, s.tipCents]).toEqual([null, null, null, 125050]);
+  });
+  it('reads fees (delivery charge + service fee) and fills them into an empty field', () => {
+    const s = cleanScan({ total: '75.66', subtotal: '61.75', fees: '9.17', tax: '4.74', tip: '' }, { categories, today });
+    expect([s.subtotalCents, s.feesCents, s.taxCents, s.tipCents]).toEqual([6175, 917, 474, null]);
+    const { values, filled } = fillFromScan(blankForm, read({ totalCents: 7566, subtotalCents: 6175, feesCents: 917, taxCents: 474 }), { startDate: today });
+    expect(values).toMatchObject({ total: '75.66', subtotal: '61.75', fees: '9.17', tax: '4.74' });
+    expect(filled).toContain('fees');
   });
   it('drops a category that is hidden or unknown', () => {
     expect(cleanScan({ category: 'old_one' }, { categories, today }).category).toBe('');
