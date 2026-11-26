@@ -193,11 +193,6 @@ already on `main`, kept as they were.
 Found while moving the module into `src/features/routePlanner` (2026-10-24);
 all already on `main`, kept as they were.
 
-- [ ] With no rep ticked in the Filter (or every ticked rep owning no customers
-      with a map point), the map says "No customer has coordinates yet — run
-      `node scripts/geocode-customers.ts --apply`" — a developer instruction shown
-      to sales staff, and the wrong reason. `MapCanvas.tsx` (the `pinsCount === 0`
-      badge).
 - [x] The Schedule panel's month grid had its own Sunday-first rule. Fixed
       2026-11-16 (uncommitted at the time of writing): it now reads the shared
       calendar's `monthGrid` / `weekdayLabels`, and the app's week starts on
@@ -460,6 +455,7 @@ Ideas the owner wants kept for later. Not scheduled; don't build unprompted.
 
 | Date | Issue | Commit |
 |---|---|---|
+| 2026-11-26 | Route Planner: with no rep ticked (or none owning customers with a map point) the map showed "No customer has coordinates yet — run node scripts/geocode-customers.ts --apply", a developer instruction. It now says "No customers to show on the map. Pick reps in Filters." (seen on the iPhone app's review login). | `37277527` |
 | 2026-10-31 | Review R1–R8: scoped customer reads/write responses, protected resource ownership, transactional placement/history/calendar updates, local date chips, dashboard retry, read-only contact controls and session recovery. | `9fba1a6` (merged by `93da4c8`) |
 | 2026-11-03 | Daily Report: the Transfers tile counted only transfers sent, so a branch that only received read 0 (SLC, Nov 3: 2 in, 93 slabs). Day sheet, Month view and both PDFs now count sent + received, split underneath. | `04c4486` |
 | 2026-11-03 | Transfers #5: no "mark received" button. **Mark received** is in Update incoming transfer (it also completes the transfer; Completed marks it received). Also new: **Log arrival** for a transfer the sender never logged, and the receiving branch may set Scheduled / Delayed / Completed / Cancelled. Not on the Daily Report sheet. | `1ac51bd` |
