@@ -1,85 +1,87 @@
-# Easy Surfaces iOS app — App Store checklist
+# Easy Surfaces iPhone app — App Store submission
 
-The app is the live site in a Capacitor shell (`ios/`, `capacitor.config.ts`). Written 2026-11-19 on
-`feat/ios-app`; check each item against Apple's current rules when you reach it. **Owner steps are marked ▶.**
+The app is `mobile/` (React Native / Expo): the live site in a WebView plus native sign-in, consent, location collector and
+Locate now (see `mobile/README.md`). It replaced the Capacitor shell (`ios/`, kept in the repo, no longer the one shipped).
+Bundle ID `app.easysurfaces`, name **Easy Surfaces**, version 1.0.0, **iOS build 13** is on TestFlight and the owner has been
+using it on a real iPhone since 2026-11-26 (reports everything works). Rewritten 2026-11-26. Check each item against Apple's
+current rules when you reach it. **Owner steps are marked ▶.**
 
-## The order that is fastest
-1. ▶ **Enrol as an individual** (decided 2026-11-19): developer.apple.com/programs/enroll with your Apple ID, ID check, $99/yr; usually approved in a day or two. The seller name on the listing is then your personal name. A company (D-U-N-S) account can be switched to later by an app transfer; the bundle ID stays.
-2. ▶ Install **Xcode** (App Store). Run the app on your own iPhone with a free Apple ID (7-day install) to test.
-3. Apply migration `0017_location_tracking` (`npm run pg:migrate -- --apply` on Render) and merge to `main`
-   (the app loads the live site, so the website must already have these changes).
-4. After approval, in Xcode: sign in, pick the team, set the bundle ID. Then send me the **Team ID** (universal links) and, for push, an APNs key.
-5. Upload a build (Xcode → Product → Archive → Distribute) to **TestFlight**; staff try it.
-6. Staff and suppliers can use **TestFlight** meanwhile. ▶ For a permanent install, ask Apple for **unlisted app distribution** (their request form) — check that Apple offers it to an individual account — then submit for review.
+## Before you submit
 
-## Universal links and push (built 2026-11-19, Team ID F82RKW6P64)
-- **Universal links:** the site serves `/.well-known/apple-app-site-association` (`src/utils/appLinks.ts` lists the paths:
-  /login, /set-password, /supplier/*, /sales/*, /checkin). The app lists `applinks:easystones.onrender.com` in
-  `ios/App/App/App.entitlements`. **If staff use another web address (a custom domain), add it there as another
-  `applinks:` line and point it at this server** — Apple reads the file from each domain.
-  Apple caches the file; a new install fetches it fresh. Test: send yourself a `/set-password?token=…` link in Notes or
-  Messages on the phone and tap it (links typed into Safari's address bar always stay in Safari).
-- **Push:** the phone registers its token after sign-in (`PushRegistrar`); the server keeps it in `push_devices`
-  (migration `0018_push_devices`) and sends through APNs (`src/services/apns.ts`, no extra package).
-  ▶ Create the APNs key (developer.apple.com → Certificates, Identifiers & Profiles → Keys → Apple Push Notifications,
-  download the `.p8` once) and set on Render: `APNS_KEY_ID` (the key's 10 characters) and `APNS_KEY_P8` (the file's
-  text; line breaks may be typed `\n`). Team ID and topic default to the app's. Without them push stays off and nothing breaks.
-  Check it with `POST /api/push-devices/test` (sends you a test notification). **Nothing sends a notification on its
-  own yet** — which events notify whom (a follow-up due, a delivery assigned, a supplier decision…) is still to decide;
-  call `sendPushToUsers(userIds, { title, body, path })` from the event.
-- The `aps-environment` in the entitlements is `development`; Xcode switches it to production when it signs an Archive
-  for TestFlight / the App Store. The server learns each phone's sandbox / production side by itself.
+1. **The website side is already live** (checked 2026-11-26): the mobile commits (up to build 13, `a4c13bfc`) are on `origin/main` and
+   the live `/api/health` reported commit `6bae639`, the same as `origin/main`. The app shows the live site, so it already has the
+   native bridge, `phoneOwns` consent and consent version 4. (A local `main` branch can be stale — compare with `origin/main`.)
+2. **Migrations on Render:** `npm run pg:migrate -- --apply` (location tables `0017`, `0019`, `0029`; push devices `0018`; anything
+   newer) — the app's location and push features need them.
+3. ▶ **Consent wording sign-off.** `CONSENT_VERSION` is 4 and the owner chose a one-line text (`consentBody`): "Allow Easy Surfaces to use
+   your location during work hours to record Visits and Resources, and to schedule your day." HR / legal signed off on version 2
+   (2026-11-21); get the current wording and the geofence restart (`mobile/src/collector/wake.ts`) read again.
+4. ▶ **Make two review logins** (never use a real person's): a staff login whose role has **Track location** and a few pages, and a
+   supplier login with one sample PO. Put them in the review notes below.
+5. ▶ **Icon:** replace `mobile/assets/icon.png` (1024 × 1024, no transparency) if the mark is soft; check `mobile/assets/` too.
+6. ▶ **Screenshots** — 6.9-inch iPhone (and iPad 13-inch, because `supportsTablet` is on; set it to `false` in `mobile/app.json` to
+   skip iPad screenshots): customer profile, route map, delivery board, supplier portal, Team Location.
+7. **Build 14+:** bump `ios.buildNumber` in `mobile/app.json` for every upload; then `cd mobile && npx expo prebuild` and archive in
+   Xcode (Product → Archive → Distribute → App Store Connect). `mobile/ios` is generated, not committed.
 
-## Move to the company account (before staff and suppliers rely on the app)
-An app on a personal account stops working for everyone if that person leaves or stops paying ($99/yr): the app is
-removed and TestFlight ends. Do this before the public rollout; check Apple's current rules at each step.
-1. ▶ Get a **D-U-N-S number** for Easy Surfaces (free, days to weeks; Apple's lookup tool at
-   developer.apple.com/enroll/duns-lookup). The company's legal name is Easy Surfaces.
-2. ▶ Enrol the company as an **Organization** developer account (needs someone with legal authority and a company
-   website; Apple may phone to verify). Add at least two admins so no one person is a single point of failure.
-3. ▶ In App Store Connect (individual account) start an **App Transfer** to the company account; the company
-   accepts. Conditions apply (e.g. no version waiting in review) — see Apple's transfer requirements.
-4. After the transfer: the bundle ID `app.easysurfaces` stays; the Team ID changes, so send me the new one — I redo
-   signing, universal links (`apple-app-site-association`) and the APNs key under the new team.
-5. Until then use a shared company Apple ID rather than a personal one, and make sure a second person can sign in.
+## Distribution and the account
+- ▶ The account is an **individual** developer account. For an **unlisted** app (staff and suppliers only) use Apple's unlisted
+  app distribution request form after the first build is in App Store Connect — check Apple still offers it to an individual account.
+- ▶ **Move to the company account** before people rely on the app: an app on a personal account disappears for everyone if that
+  person leaves or stops paying. Get a **D-U-N-S number** for Easy Surfaces (free, days to weeks), enrol the company as an
+  **Organization** (two admins), then in App Store Connect start an **App Transfer**. The bundle ID stays; the Team ID changes, so
+  push (APNs key) and any associated domains are redone under the new team. This takes the longest, so start it now; it can run
+  while the app is in review (Apple won't transfer an app with a version waiting in review).
 
-## What the build needs (done unless noted)
-- App icon and launch image: `node scripts/make-ios-icons.ts`. ▶ Replace `public/favicon.png` with a larger copy of the logo
-  mark before submitting (the current one is 156 px tall, so the 1024 px icon is soft), then re-run it.
-- Bundle ID `app.easysurfaces` (owner's choice 2026-11-19; it can't change after the first upload).
-- Permission texts are in `ios/App/App/Info.plist` (camera, photos, location when in use, location always). Apple reads them.
-- Privacy policy page: `/privacy` on the website (`src/pages/PrivacyPage.tsx`). ▶ Have it read by whoever advises you on privacy.
-  Its address goes in the listing as the Privacy Policy URL.
-- Not done: universal links (invite links opening the app) and push notifications — both need the developer account.
+## What the app asks the phone for (`mobile/app.json`)
+Camera, photo library, Face ID, location when in use and **Always**; background modes `location` and `remote-notification`;
+push (`aps-environment`). Apple reads the permission texts, so they say what the app does with each.
+`ITSAppUsesNonExemptEncryption` is false. A privacy manifest is at `mobile/ios/EasySurfaces/PrivacyInfo.xcprivacy` (generated).
+**Not carried over from the Capacitor app:** universal links (invite links opening the app) — `associatedDomains` isn't in
+`app.json`; links open in Safari. Not needed for submission.
 
 ## Listing text (edit freely)
 - **Name:** Easy Surfaces. **Subtitle:** Sales, deliveries and suppliers. **Category:** Business. **Age rating:** 4+.
-- **Description:** Easy Surfaces is the working app for our staff and suppliers. Sales teams plan visits and routes, log
-  visits and scan business cards. Delivery and operations teams run the schedule, check-ins and daily reports. Suppliers
-  upload bundle photos for their purchase orders in their own language. Staff whose role includes it can share their location
-  during work hours so managers can see where the team is.
+- **Privacy policy URL:** `<site>/privacy` (`src/pages/PrivacyPage.tsx`). It says what location is read, who sees it, the 90-day
+  deletion, and that a manager can ask the phone for a one-off location with a reason. ▶ Have it read by whoever advises on privacy.
+- **Description:** Easy Surfaces is the working app for our staff and suppliers. Sales teams plan visits and routes, log visits,
+  scan business cards and upload receipts. Delivery and operations teams run the schedule, check-ins and daily reports. Suppliers
+  upload bundle photos for their purchase orders in their own language. Staff whose role includes it share their location during
+  work hours so managers can see where the team is.
 - **Keywords:** stone, slabs, quartz, deliveries, sales, supplier, route, inventory.
-- **Screenshots:** the required iPhone size (currently 6.9-inch). Take them from the Simulator once it runs: a customer profile,
-  the route map, the delivery board, the supplier portal, and the Team Location page.
 
 ## App Privacy ("nutrition label") answers
-Tracking: **No** (nothing is used to track people across other companies' apps or sites). Data collected and linked to the user,
-all for **App Functionality**: Contact Info (name, email); Precise Location; Photos or Videos (only ones the user takes or picks);
-Other User Content (notes, files, signatures); User ID; Identifiers/Usage (sign-in and last-active times). No advertising use.
+Tracking: **No**. Data linked to the user, all for **App Functionality**: Contact Info (name, email); **Precise Location** (work
+hours, background; and a one-off when a manager asks); Photos or Videos (only ones the user takes or picks); Other User Content
+(notes, files, receipts, signatures); User ID; Device ID (push token); Usage / Diagnostics (sign-in and last-active times, battery
+level and low-power state sent with the location heartbeat). Financial info: receipt amounts and card IDs are business expenses
+the user enters; answer **Purchases / Other Financial Info** if Apple's wording covers it. No advertising use.
 
 ## Notes for App Review (paste into the review notes)
-> Easy Surfaces is a private business app for the staff and suppliers of Easy Surfaces, which does business as Easy Stones; it is submitted under the account holder's name and the listing is unlisted. Sign in with the demo accounts
-> below. The staff demo has location sharing turned on: after sign-in the app shows a consent screen explaining that location is
-> read in the background, 7 AM–6 PM on workdays, for the user's manager; accepting then triggers iOS's location prompt.
-> Background location is essential to this feature: managers use it to see where reps and drivers are during the workday. It
-> stops outside those hours and the user can switch it off in Settings. The supplier demo account opens the supplier portal.
-> Camera access is used to scan slab tags, receipts and business cards and to photograph material bundles.
+> Easy Surfaces is a private business app for the staff and suppliers of Easy Surfaces, which does business as Easy Stones. It
+> shows our web application inside the app and adds native features: a native sign-in with Face ID, a location consent screen,
+> background location collection, camera capture for receipts / business cards / slab tags, and push notifications. It is
+> distributed unlisted.
 >
-> Staff demo: ▶ username / password (create one with a role that has Share location and a few pages).
-> Supplier demo: ▶ email / password (create one supplier login with a sample PO).
+> **Staff demo:** ▶ username / password. After sign-in the app shows a consent screen; accepting triggers iOS's location prompt.
+> Choose "Allow While Using", then "Change to Always Allow" when iOS offers it. Location is read in the background only between
+> 7 AM and 6 PM on the user's workdays, for the user's manager (managers see their team's location and last-seen time; the user's
+> own record of when they agreed is kept). Background location is essential to this feature, and it stops outside those hours.
+> In addition, an authorised manager can request one location reading outside work hours, with a written reason that is logged;
+> this is stated in our privacy policy. The user can switch location off in iPhone Settings at any time.
+> **Supplier demo:** ▶ email / password; opens the supplier portal (purchase orders and bundle photos).
+> Camera is used to photograph receipts, business cards, slab tags and material bundles. Push is used for admin messages and
+> receipt reminders.
 
 ## Risks to know
-- Apple can reject an app that is only a website (guideline 4.2). The camera, consent screen and background location help;
-  the review notes above explain why. A second review round is normal.
-- The shell needs a connection to open (no offline mode).
-- Background location can still be stopped by iOS if the person force-quits the app or turns location off.
+- **Guideline 4.2 (minimum functionality)** — Apple can reject an app that is mainly a website. The native sign-in, consent screen,
+  background location, camera and push are the answer; the review notes lead with them. A second review round is normal.
+- **Guidelines 5.1.1 / 5.1.2 (location consent)** — the in-app consent text (version 4) says location is used during work hours but does
+  **not** say managers see it or that a manager can request a reading outside work hours (the owner chose that wording on
+  2026-11-23); the privacy policy and these notes do say it. If App Review or HR objects, restore the longer wording
+  (`consentBody`, bump `CONSENT_VERSION`); everyone is asked again.
+- **Background location** can still be stopped by iOS if the person force-quits the app (the geofence may restart it; unproven) or
+  turns location off. Locate now outside 7–6 waits until the app is next opened.
+- The app needs a connection to open (no offline mode).
+- Android is not part of this submission (needs Firebase push, a Google Play background-location declaration and a real-phone
+  test — `docs/ANDROID_LAUNCH.md`).

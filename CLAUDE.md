@@ -752,9 +752,8 @@ phone shows the agreement itself and posts it to `/api/location-tracking/consent
 app foreground). **The page's own `navigator.geolocation` is answered by the phone too** (2026-11-23, `mobile/src/host/geolocationShim.ts`, injected with the bridge shim; tested): without it WKWebView asked for location a second time for the website (Route Planner's dot, Optimize route) although the app already had it. Page calls go to the app's `Geolocation` plugin, which returns the collector's newest point if under 20 s old (`host/lastFix.ts`); a visit's stamp asks for `maximumAge: 0` and still gets a fresh read. App only, needs a new app build; not tried on a real iPhone. **A closed iPhone app is restarted by a geofence (2026-11-23, after a phone showed no data 8:53–11:06 AM; `mobile/src/collector/wake.ts`, tested):**
 the collector keeps a 200 m circle around the newest in-window position, `WAKE_TASK` calls `wake()` (→ `resume()` + tick) when iOS fires it, and
 Team Location's "No data" line now says the app may not have been running (`PersonPanel.tsx`). Unproven: whether iOS (26 especially) relaunches a
-force-quit app, and a phone that never crosses the circle isn't woken. Android is not restarted. Still true: an ask outside 7–6 waits until the app is next opened, and none of it has run on a real phone. Known
-losses and unverified parts are in `mobile/README.md` (Android push needs FCM; **never run on a real phone**; the Android debug app builds, the iOS build is
-untried because CocoaPods isn't installed). The web `/login` page renders nothing in any native app (`CustomerLoginPage`), so a native
+force-quit app, and a phone that never crosses the circle isn't woken. Android is not restarted. Still true: an ask outside 7–6 waits until the app is next opened. **On a real iPhone since 2026-11-26:** the owner runs the TestFlight build (iOS build 13, `app.easysurfaces`) and reports everything works; the individual checks (a full tracked day, a force-quit relaunch by the geofence) weren't itemised, so keep the "Unproven" lines above until someone confirms them. Android is still never run on a real phone. Known
+losses and unverified parts are in `mobile/README.md` (Android push needs FCM). The App Store submission steps are `docs/IOS_APP_STORE.md`. The web `/login` page renders nothing in any native app (`CustomerLoginPage`), so a native
 sign-in screen is mandatory on every platform (the earlier Capacitor Android app had none: its login was blank).
 
 ## Send Notification: an admin's message to people's iPhones (2026-11-21)
@@ -1427,7 +1426,7 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   category's own fields (customer, and a **note** when the category requires one — 2026-11-23: a category's
   "Required on every receipt" ticks are Customer and Note; Who attended and Business purpose were removed, old receipts keep
   theirs and nothing asks for them; Postgres `receipt_categories.needs_note`, migration `0031`); until then it saves
-  as a draft. Approved can't be edited; voided with a reason, never deleted.
+  as a draft. **The cardholder edits only until anyone has approved it** (owner, 2026-11-26: Accounting's, the second one's or an answer to a question — `holderMayEdit` in `cardReceipts.ts`; after that they ask for Send back); someone with **Edit any receipt** (Accounting, Admin) still edits after approval and keeps the approvals. Voided with a reason, never deleted.
 - **Approval: Accounting always, a second person from $150** (owner, 2026-11-23, on `feat/receipt-approvals`; replaces the
   old "each role lists the roles whose receipts it approves" — `Role.approvesCardReceiptsOf` and its Roles screen picker are
   gone, nothing reads it). **Every rule is `src/utils/receiptApproval.ts` (tested); never re-implement one, never check a
@@ -1443,8 +1442,8 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   must be an active person whose role holds Approve — branch manager / Admin for staff receipts, an Admin otherwise): they
   comment, which **approves** (fills the second approval when theirs); asking takes back an Accounting approval, so
   Accounting gives the final one; while a question is open nobody else approves, and it can be withdrawn. **Send back**
-  (comment) clears both approvals and the question; **Reopen** (reason) puts an approved receipt back to Waiting; **a holder's
-  edit clears both approvals**. An **Admin's charge with no upload** is Waiting, never Missing (Statements shows "Waiting for
+  (comment) clears both approvals and the question; **Reopen** (reason) puts an approved receipt back to Waiting; **a holder
+  can't edit once anyone has approved it** (2026-11-26), so only Send back or Reopen clears approvals. An **Admin's charge with no upload** is Waiting, never Missing (Statements shows "Waiting for
   Accounting"); Accounting fills category / type / customer / note (`PUT /expenses/:id/details`) and approves it with no
   receipt. Accounting, Manager and Director roles are given Approve once (`NEW_PERMISSION_GRANTS` in server.ts), which
   chains to **Send receipt reminders** (`send_receipt_reminders`, `ACTION_MIGRATIONS`). **Reminders**
@@ -1630,7 +1629,7 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   the saved receipt's `id`, `status`, `canMerge` and `clearsApprovals` (`repeatInfoOf`), and `POST /expenses/:id/merge` (same body as an add)
   gives the saved receipt the new **photo, total and category** (`mergeIntoSaved`, tested) while it **keeps the merchant** the bank's report gave it,
   its day, note and card; a subtotal / tax / tip read from the new photo come with it, a note only fills a blank one, and the old photo is replaced.
-  It is an ordinary edit (`editExpense`, history "updated from a new upload"): the holder's edit takes approvals back (the button says so), Edit any
+  It is an ordinary edit (`editExpense`, history "updated from a new upload"): the holder can no longer update one anyone has approved (2026-11-26), Edit any
   keeps them. **An approved or voided receipt is refused for everyone** (`mergeableRepeat`, owner: no updating approved ones), and the button shows
   only to someone who may edit that receipt (so Accounting adding for others needs Edit any to update a waiting one). Save anyway still adds a second one.
 - **Custom date range** (2026-11-24; moved 2026-11-25): the Expenses period is one **Period** field at the top of the Filters panel

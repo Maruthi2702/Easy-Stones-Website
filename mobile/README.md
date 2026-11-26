@@ -53,5 +53,6 @@ It cannot run in Expo Go (background location, secure store with biometrics and 
    (`scrollEnabled={false}` and no automatic insets, `src/host/webViewSettings.ts`): without them WKWebView pans the whole page up
    when a text box takes focus, so forms lose their header and full-screen search sheets go blank (found 2026-11-24).
    Android's equivalent is untested.
-5. **Never run on a real phone yet.** Face ID / fingerprint prompts, the cookie hand-over to the WebView on both platforms, the
-   foreground-service notification and file upload / camera inside the WebView all need a real-device test.
+5. **iPhone: running from TestFlight since 2026-11-26** (build 13); the owner reports everything works (sign-in, Face ID, camera,
+   forms, location). **Android has never run on a real phone** — its Face ID / fingerprint prompt, the cookie hand-over, the
+   foreground-service notification and file upload / camera inside the WebView still need a real-device test.
