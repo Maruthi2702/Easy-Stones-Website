@@ -146,6 +146,10 @@ describe('an expense', () => {
     expect(holderMayEdit({ status: 'approved' })).toBe(false);
     expect(holderMayEdit({ status: 'sent_back' })).toBe(true);
     expect(holderMayEdit({ status: 'waiting', voided: new Date() })).toBe(false);
+    // The first approval by anyone locks it for the holder.
+    expect(holderMayEdit({ status: 'waiting', approval: null, secondApproval: null })).toBe(true);
+    expect(holderMayEdit({ status: 'waiting', approval: { by: 'a' } })).toBe(false);
+    expect(holderMayEdit({ status: 'waiting', secondApproval: { by: 'b' } })).toBe(false);
   });
   it('names what changed', () => {
     const { value } = cleanExpense({ ...base, total: '15.00' }, { today: TODAY, categories: CATS });

@@ -368,15 +368,14 @@ describe('saving a receipt', () => {
       await as(REP).post(`/expenses/${other.id}/merge`, receipt({ total: '31.00' })).expect(409);
     });
 
-    it('takes the holder’s approvals back like any edit, and says so beforehand', async () => {
+    it('is not offered to the holder once anyone has approved it', async () => {
       const big = receipt({ total: '200.00' });
       await as(REP).post('/expenses', big).expect(201);
       await as(ACCOUNTING).post(`/expenses/${big.id}/approve`, { comment: '' }).expect(200);
       const again = await as(REP).post('/expenses', receipt({ total: '200.00', category: 'fuel' })).expect(409);
-      expect(again.body.repeat).toMatchObject({ status: 'waiting', canMerge: true, clearsApprovals: true });
-      const merged = await as(REP).post(`/expenses/${big.id}/merge`, receipt({ total: '200.00', category: 'fuel' })).expect(200);
-      expect(merged.body.expense.approval).toBeNull();
-      expect(merged.body.expense.history.at(-1).changes).toMatch(/approvals cleared/);
+      expect(again.body.repeat).toMatchObject({ status: 'waiting', canMerge: false });
+      await as(REP).post(`/expenses/${big.id}/merge`, receipt({ total: '200.00', category: 'fuel' })).expect(409);
+      expect(((await CardExpense.findById(big.id).lean()) as Loose).approval).toBeTruthy();
     });
 
     it('is offered only to someone who may edit that receipt', async () => {
@@ -686,14 +685,18 @@ describe('approval', () => {
     expect(fixed.body.expense.status).toBe('waiting');
   });
 
-  it('a holder’s edit takes back both approvals; an open question stays', async () => {
+  it('the first approval by anyone locks the holder out; Edit any still changes it and keeps the approvals', async () => {
     const body = big();
     await as(REP).post('/expenses', body).expect(201);
+    await as(REP).put(`/expenses/${body.id}`, { ...body, note: 'Before anyone approved' }).expect(200);
     await approve(DIRECTOR, body.id).expect(200);
     await as(ACCOUNTING).post(`/expenses/${body.id}/ask`, { to: ids.admin1, question: 'Which job site was this?' }).expect(200);
-    const edited = await as(REP).put(`/expenses/${body.id}`, { ...body, note: 'Fuel for the Kent run' }).expect(200);
-    expect(edited.body.expense).toMatchObject({ status: 'waiting', approval: null, secondApproval: null, ask: { to: ids.admin1, answeredAt: null } });
-    expect(edited.body.expense.history.at(-1).changes).toMatch(/approvals cleared/);
+    const refused = await as(REP).put(`/expenses/${body.id}`, { ...body, note: 'Fuel for the Kent run' }).expect(409);
+    expect(refused.body.message).toMatch(/approved/);
+    const EDITOR = { ...ACCOUNTING, permissions: [...ACCOUNTING.permissions, 'edit_any_card_receipt'] };
+    const fixed = await as(EDITOR).put(`/expenses/${body.id}`, { ...body, note: 'Fixed by Accounting' }).expect(200);
+    expect(fixed.body.expense).toMatchObject({ status: 'waiting', ask: { to: ids.admin1, answeredAt: null } });
+    expect(fixed.body.expense.approval || fixed.body.expense.secondApproval).toBeTruthy();
   });
 
   it('reopens an approved receipt with a reason, clearing its approvals', async () => {

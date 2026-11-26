@@ -646,7 +646,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
    */
   const repeatInfoFor = (req: Request, existing: Loose) => {
     const own = String(existing.userId) === userIdOf(req);
-    const mayEdit = has(req, CARD_RECEIPTS.EDIT_ANY) || (own ? has(req, CARD_RECEIPTS.USE) : has(req, CARD_RECEIPTS.MANAGE_CARDS) && managerMayEdit({ status: existing.status, voided: existing.voidedAt }));
+    const mayEdit = has(req, CARD_RECEIPTS.EDIT_ANY) || (own ? has(req, CARD_RECEIPTS.USE) && holderMayEdit({ status: existing.status, voided: existing.voidedAt, approval: existing.approval, secondApproval: existing.secondApproval }) : has(req, CARD_RECEIPTS.MANAGE_CARDS) && managerMayEdit({ status: existing.status, voided: existing.voidedAt }));
     return repeatInfoOf(existing, { keepsApprovals: has(req, CARD_RECEIPTS.EDIT_ANY), mayEdit });
   };
 
@@ -758,8 +758,8 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
         }
       } else {
         if (!has(req, CARD_RECEIPTS.USE)) return res.status(404).json({ message: 'Expense not found.' });
-        if (!holderMayEdit({ status: expense.status, voided: expense.voidedAt })) {
-          return res.status(409).json({ message: expense.voidedAt ? 'A voided expense can’t be changed.' : 'It’s approved, so it can’t be changed.' });
+        if (!holderMayEdit({ status: expense.status, voided: expense.voidedAt, approval: expense.approval, secondApproval: expense.secondApproval })) {
+          return res.status(409).json({ message: expense.voidedAt ? 'A voided expense can’t be changed.' : 'Someone has approved it, so it can’t be changed. Ask for it to be sent back.' });
         }
       }
       // Accounting's change to a waiting or approved receipt keeps its status and approvals; the card choice is the holder's.
@@ -829,7 +829,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const expense = await db.findExpense(id);
       if (!expense) return res.status(404).json({ message: 'Expense not found.' });
       if (!mergeableRepeat({ status: expense.status, voided: expense.voidedAt })) {
-        return res.status(409).json({ message: expense.voidedAt ? 'A voided expense can’t be changed.' : 'It’s approved, so it can’t be changed. Save this one as its own receipt instead.' });
+        return res.status(409).json({ message: expense.voidedAt ? 'A voided expense can’t be changed.' : 'Someone has approved it, so it can’t be changed. Ask for it to be sent back. Save this one as its own receipt instead.' });
       }
       const shown = (await categoriesForSave()).filter((c) => c.active);
       const incoming = cleanExpense(req.body || {}, { today: todayOf(), categories: shown });

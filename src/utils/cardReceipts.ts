@@ -488,8 +488,12 @@ export const privateReceiptUrlOfKey = (key: string): string => {
 export const isReceiptFolderUrl = (url: unknown): boolean =>
   Boolean(privateReceiptNameOf(url)) || (typeof url === 'string' && /\/CardReceipts\/[^/?#]+$/.test(url.split('?')[0] || ''));
 
-/** The card holder may change it while it isn't approved or voided. */
-export const holderMayEdit = (e: { status: string; voided?: unknown }) => !e.voided && e.status !== 'approved';
+/**
+ * The card holder may change it until anyone has approved it (owner, 2026-11-26: the first approval locks it — Accounting's, the
+ * second one's, or an answer to a question) and while it isn't voided. Someone with Edit any receipt is not held to this (`anyoneMayEdit`).
+ */
+export const holderMayEdit = (e: { status: string; voided?: unknown; approval?: unknown; secondApproval?: unknown }) =>
+  !e.voided && e.status !== 'approved' && !e.approval && !e.secondApproval;
 
 /** Someone who manages company cards (admin, accounting) may fix another person's receipt only while it is a draft or sent back; the edit is kept in its history. */
 export const managerMayEdit = (e: { status: string; voided?: unknown }) => !e.voided && (e.status === 'draft' || e.status === 'sent_back');
