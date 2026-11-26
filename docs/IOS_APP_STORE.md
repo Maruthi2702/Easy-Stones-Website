@@ -20,7 +20,7 @@ current rules when you reach it. **Owner steps are marked ▶.**
    launch (owner, 2026-11-26), so the listing and notes don't mention suppliers.
 5. ▶ **Icon:** replace `mobile/assets/icon.png` (1024 × 1024, no transparency) if the mark is soft; check `mobile/assets/` too.
 6. ▶ **Screenshots** — 6.9-inch iPhone (and iPad 13-inch, because `supportsTablet` is on; set it to `false` in `mobile/app.json` to
-   skip iPad screenshots): customer profile, route map, delivery board, supplier portal, Team Location.
+   skip iPad screenshots): customer profile, route map, delivery board, Team Location.
 7. **Build 14+:** bump `ios.buildNumber` in `mobile/app.json` for every upload; then `cd mobile && npx expo prebuild` and archive in
    Xcode (Product → Archive → Distribute → App Store Connect). `mobile/ios` is generated, not committed.
 
