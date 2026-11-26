@@ -220,6 +220,7 @@ function Row({ row, index, sameAs, categories, today, check, customerOptions, cu
       </div>
 
       {row.error ? <div className="ccr-form-error" role="alert">{row.error}</div> : null}
+      {saved && row.saved?.matchedMissing ? <p className="ccr-sub ccr-bulk-matched"><Check size={13} aria-hidden="true" /> Matched the charge on the bank’s report. Its “no receipt yet” row was replaced by this one.</p> : null}
       {row.repeat ? (
         <div className="ccr-form-error" role="alert">
           <RepeatLine repeat={row.repeat} />

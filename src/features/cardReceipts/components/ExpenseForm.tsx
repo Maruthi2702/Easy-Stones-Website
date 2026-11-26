@@ -5,6 +5,7 @@ import ReceiptPreview from './ReceiptPreview';
 import FormModal from '../../../components/shared/form/FormModal';
 import { FormSection, FormField, FormPicker, FormSearchPicker } from '../../../components/shared/form/FormControls';
 import type { FormOption } from '../../../components/shared/form/FormControls';
+import { categoryText } from '../cardReceiptsView';
 import { goToField } from '../../../components/shared/form/formFocus';
 import { useCustomerOptions } from '../../../api/customerOptions';
 import { compressImage, fileToBase64 } from '../../../utils/attachmentFiles';
@@ -45,6 +46,11 @@ export type ExpenseFormProps = {
   startLost?: boolean;
   /** A photo or file already chosen in Add receipt's first step: uploaded and read as the form opens. */
   initialFile?: File | null;
+  /**
+   * Upload receipt on an expense that came from the bank's report: once a receipt is on it, the person must confirm the
+   * category (the reading's guess, or their own pick) before Save works. Off for every other add / edit.
+   */
+  confirmCategory?: boolean;
   cardLabel: string;
   /** Every active card of the person; the Card choice shows with two or more. */
   cards?: Card[];
@@ -81,7 +87,7 @@ export type ExpenseFormProps = {
  * (src/utils/receiptScan.ts); the card says which, so they get checked, and
  * when merchant or total are still blank the edit screen opens for them.
  */
-export default function ExpenseForm({ expense, startLost = false, initialFile = null, cardLabel, cards: ownCards = [], holders = [], meId = '', categories, today, upload, scan, onSave, onMerge, onClose }: ExpenseFormProps) {
+export default function ExpenseForm({ expense, startLost = false, initialFile = null, confirmCategory = false, cardLabel, cards: ownCards = [], holders = [], meId = '', categories, today, upload, scan, onSave, onMerge, onClose }: ExpenseFormProps) {
   const editing = Boolean(expense);
   const start = useMemo(() => (expense ? fromExpense(expense) : blank(today)), [expense, today]);
   const [values, setValues] = useState<Values>(start);
@@ -116,6 +122,7 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
   const [readLine, setReadLine] = useState('');
   // The photo just picked is already on a receipt (a warning; Save still works).
   const [dupLine, setDupLine] = useState('');
+  const [categoryConfirmed, setCategoryConfirmed] = useState(false);
   const readSeq = useRef(0);
   const valuesRef = useRef(values);
   valuesRef.current = values;
@@ -130,6 +137,10 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
   const check = cleanExpense(body, { today, categories: offered, currentSubcategory: start.subcategory, currentLostReason: expense?.lostReason || '' });
   const problems: ExpenseProblems = { ...check.problems, ...serverProblems };
   const complete = Object.keys(check.missing).length === 0;
+
+  // Upload receipt: a receipt is on it and nobody has confirmed (or picked) the category yet.
+  const awaitingConfirm = confirmCategory && !lost && Boolean(values.receiptUrl) && !categoryConfirmed;
+  const confirmWords = values.category ? 'Confirm the category before saving.' : 'Pick the category before saving.';
 
   const set = (patch: Partial<Values>) => { setValues((v) => ({ ...v, ...patch })); setServerProblems({}); setRepeat(null); };
   const dirty = (Object.keys(start) as (keyof Values)[]).filter((k) => JSON.stringify(values[k]) !== JSON.stringify(start[k])).length
@@ -231,6 +242,7 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
     // A problem in the bill details is fixed on the edit screen.
     if (first && isBillField(first)) { openBill(first, true); return; }
     if (first) { goToField(first); return; }
+    if (awaitingConfirm) { goToField('category'); return; }
     setSaving(true);
     setServerError('');
     try {
@@ -290,7 +302,7 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
       submitDisabled={onBillScreen ? false : uploading || reading || (editing && !dirty)}
       dirtyCount={onBillScreen ? 0 : dirty}
       discardTitle={editing ? 'Discard your changes?' : 'Discard this receipt?'}
-      errors={onBillScreen ? (billSubmitted ? pick(problems, true) : {}) : (submitted ? pick(problems, false) : {})}
+      errors={onBillScreen ? (billSubmitted ? pick(problems, true) : {}) : (submitted ? { ...pick(problems, false), ...(awaitingConfirm ? { category: confirmWords } : {}) } : {})}
       showErrors={onBillScreen ? billSubmitted : submitted}
       fieldLabels={LABELS}
     >
@@ -361,11 +373,17 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
           ) : null}
 
           <FormSection>
-            <FormField name="category" id="ccr-category" label="Category" required error={(submitted ? problems.category : '') || (submitted ? check.missing.category : '')}>
+            <FormField name="category" id="ccr-category" label="Category" required error={(submitted ? problems.category : '') || (submitted ? check.missing.category : '') || (submitted && awaitingConfirm ? confirmWords : '')}>
               <FormSearchPicker id="ccr-category" value={values.category}
-                onChange={(c) => set({ category: c, subcategory: defaultSubOf(offered.find((o) => o.name === c))?.name || '' })} options={categoryOptions}
+                onChange={(c) => { setCategoryConfirmed(true); set({ category: c, subcategory: defaultSubOf(offered.find((o) => o.name === c))?.name || '' }); }} options={categoryOptions}
                 placeholder="Choose a category" searchPlaceholder="Search categories" sheetTitle="Category" maxResults={200} error={submitted ? problems.category : ''} keepInForm />
             </FormField>
+            {awaitingConfirm && !uploading && !reading ? (
+              <div className="ccr-note is-warn ccr-confirm" role="status">
+                <span>{values.category ? <>Check the category: <b>{categoryText(categories, values)}</b>. Pick another if it’s wrong.</> : 'Pick the category for this receipt.'}</span>
+                {values.category ? <button type="button" className="fm-btn fm-btn-small" onClick={() => setCategoryConfirmed(true)}>Yes, it’s right</button> : null}
+              </div>
+            ) : null}
             {subOptions.length ? (
               <FormField name="subcategory" id="ccr-subcategory" label="Sub-category" required error={(submitted ? problems.subcategory : '') || (submitted ? check.missing.subcategory : '')}>
                 <FormPicker id="ccr-subcategory" value={values.subcategory} onChange={(s) => set({ subcategory: s })} options={subOptions}

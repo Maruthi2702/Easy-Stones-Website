@@ -29,7 +29,7 @@ export type RowReadiness = 'ready' | 'draft' | 'blocked';
 export const rowReadiness = (check: { value?: unknown; missing: Record<string, unknown> }): RowReadiness =>
   !check.value ? 'blocked' : Object.keys(check.missing).length === 0 ? 'ready' : 'draft';
 
-/** What a finished batch says: "4 sent for approval · 1 saved as a draft · 2 matched a Missing receipt". */
+/** What a finished batch says: "4 sent for approval · 1 saved as a draft · 2 replaced report rows". */
 export function batchSummary(saved: { status: string; matchedMissing: boolean; /** It updated a receipt already saved instead of adding one. */ merged?: boolean }[], failed: number): string {
   const added = saved.filter((s) => !s.merged);
   const sent = added.filter((s) => s.status === 'waiting').length;
@@ -40,7 +40,7 @@ export function batchSummary(saved: { status: string; matchedMissing: boolean; /
     sent ? `${sent} sent for approval` : '',
     drafts ? `${drafts} saved as ${drafts === 1 ? 'a draft' : 'drafts'}` : '',
     merged ? `${merged} updated ${merged === 1 ? 'a saved receipt' : 'saved receipts'}` : '',
-    matched ? `${matched} matched a Missing receipt` : '',
+    matched ? `${matched} replaced ${matched === 1 ? 'a report row' : 'report rows'}` : '',
     failed ? `${failed} didn’t save` : ''
   ].filter(Boolean).join(' · ');
 }

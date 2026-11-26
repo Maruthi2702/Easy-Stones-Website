@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Ban, Bell, CornerUpLeft, FileText, HelpCircle, Maximize2, MessageSquareOff, MoreHorizontal, RotateCcw, Trash2 } from 'lucide-react';
+import { AlertTriangle, Ban, Bell, CornerUpLeft, FileText, HelpCircle, Maximize2, MessageSquareOff, MoreHorizontal, RotateCcw, Trash2, Upload } from 'lucide-react';
 import FormModal from '../../../components/shared/form/FormModal';
 import { FormSection, FormField } from '../../../components/shared/form/FormControls';
 import { billMismatch, billMismatchLine, formatMoney, isBigReceipt, usDate, fieldsOf } from '../../../utils/cardReceipts';
@@ -27,6 +27,8 @@ export type ExpenseDrawerProps = {
   /** The Send reminders switch. */
   canRemind?: boolean;
   onEdit: () => void;
+  /** Attach the receipt to this expense (the "No receipt yet" box becomes a button). Absent = the box is plain text. */
+  onUploadReceipt?: () => void;
   onVoid: () => void;
   onDelete?: () => void;
   onApprove: (comment: string) => Promise<unknown>;
@@ -107,7 +109,7 @@ function MoreMenu({ children }: { children: React.ReactNode }) {
  */
 export default function ExpenseDrawer({
   expense: e, categories, today = '', canEdit, canVoid, canDelete = false, canRemind = false,
-  onEdit, onVoid, onDelete, onApprove, onAnswer, onSendBack, onAsk, onWithdrawAsk, onReopen, onRemind, onFillDetails, nearReceipts, onUseReceipt, onClose
+  onEdit, onUploadReceipt, onVoid, onDelete, onApprove, onAnswer, onSendBack, onAsk, onWithdrawAsk, onReopen, onRemind, onFillDetails, nearReceipts, onUseReceipt, onClose
 }: ExpenseDrawerProps) {
   const [comment, setComment] = useState('');
   const [answer, setAnswer] = useState('');
@@ -233,7 +235,12 @@ export default function ExpenseDrawer({
               <p>“{e.lostReason}”</p>
             </div>
           ) : (
-            <div className="ccr-lost"><span className="ccr-lost-k">No receipt yet</span></div>
+            onUploadReceipt && canEdit && !e.voided ? (
+              <button type="button" className="ccr-lost ccr-lost-upload" onClick={onUploadReceipt}>
+                <span className="ccr-lost-k"><Upload size={16} aria-hidden="true" /> Upload receipt</span>
+                <span className="ccr-sub">No receipt yet. Take a photo or pick a file.</span>
+              </button>
+            ) : <div className="ccr-lost"><span className="ccr-lost-k">No receipt yet</span></div>
           )}
           <div className="ccr-view-fields">
             <dl className="ccr-rows">

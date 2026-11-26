@@ -153,6 +153,7 @@ describe('the Add several window', () => {
     expect(p.addOne.mock.calls.map((c) => [c[1].onBehalfOf, c[1].batch])).toEqual([[undefined, { n: 1, of: 2 }], [undefined, { n: 2, of: 2 }]]);
     await waitFor(() => expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy());
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
-    expect(p.onSaved).toHaveBeenCalledWith('2 saved as drafts · 1 matched a Missing receipt');
+    expect(screen.getAllByText(/Matched the charge on the bank’s report/).length).toBe(1);
+    expect(p.onSaved).toHaveBeenCalledWith('2 saved as drafts · 1 replaced a report row');
   });
 });

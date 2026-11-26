@@ -121,6 +121,9 @@ body.light-theme-active .fm-overlay {
 .ccr-note svg { flex: none; margin-top: 1px; }
 .ccr-note.is-error { background: var(--ccr-miss-bg); color: var(--ccr-miss); }
 .ccr-note.is-warn { background: var(--ccr-warn-bg); color: var(--ccr-warn); }
+/* Upload receipt: the category to confirm, with its one-tap button. */
+.ccr-confirm { align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.ccr-confirm .fm-btn { flex: none; }
 
 /* ── Tiles ── */
 .ccr-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
@@ -242,6 +245,10 @@ td.ccr-amt.is-big { color: var(--ccr-gold-ink); }
 .ccr-lost { display: grid; gap: 6px; padding: 14px; border-radius: 12px; border: 1.5px dashed var(--ccr-line); }
 .ccr-lost-k { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ccr-back); }
 .ccr-lost p { margin: 0; font-size: 15px; }
+/* "No receipt yet" as a button: the whole dashed box uploads the receipt onto this expense. */
+.ccr-lost-upload { width: 100%; text-align: left; cursor: pointer; font: inherit; color: inherit; background: transparent; min-height: 48px; }
+.ccr-lost-upload .ccr-lost-k { display: inline-flex; align-items: center; gap: 6px; }
+.ccr-lost-upload:hover, .ccr-lost-upload:focus-visible { border-color: var(--ccr-gold, #c4a13f); background: color-mix(in srgb, var(--ccr-gold, #c4a13f) 8%, transparent); outline: none; }
 /* A saved value, shown as the template's read-only field: dashed border, grey text. */
 .ccr-ro { box-sizing: border-box; min-height: 42px; display: flex; align-items: center; padding: 8px 12px; border: 1px dashed var(--fm-bd); border-radius: 8px; background: var(--fm-gold-soft, transparent); color: var(--fm-tx); font-size: 15px; overflow-wrap: anywhere; min-width: 0; }
 .ccr-ro.is-big { font-size: 18px; font-weight: 700; color: var(--fm-tx); }
@@ -770,3 +777,7 @@ body.light-theme-active .ccr-bank.is-encore { background: #f1e9ff; color: #5b21b
   .ccr .ccr-fbar .lf .lf-btn { width: auto !important; height: 36px !important; padding: 0 12px 0 10px !important; border-radius: 8px !important; gap: 7px; }
   .ccr .ccr-fbar .lf .lf-btn::after { content: 'Filters'; font-size: 13.5px; font-weight: 550; }
 }
+
+/* Add several: a saved row says it took the place of the bank report's row. */
+.ccr-bulk-matched { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; }
+.ccr-bulk-matched svg { flex: none; }

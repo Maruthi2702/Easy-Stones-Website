@@ -7,7 +7,10 @@ import { receiptFileProblem } from '../../../utils/receiptFile';
 
 type Props = {
   onCamera: () => void;
-  onLost: () => void;
+  /** "I lost it" — absent when the choice is for an expense that already exists (Upload receipt): no Lost Receipt row. */
+  onLost?: () => void;
+  /** The window's title; "Add receipt" unless it is attaching a photo to an expense that already exists. */
+  title?: string;
   /** Add several receipts at once (Accounting and Admins); absent = no such option. */
   onSeveral?: () => void;
   /** A photo or file was chosen (or dropped). It has not been checked yet. */
@@ -27,7 +30,7 @@ type Props = {
  * Desktop also takes a dropped or pasted file. A wrong file type is refused here, in the
  * window, before anything uploads.
  */
-export default function AddReceiptChoice({ onCamera, onLost, onSeveral, onFile, onClose }: Props) {
+export default function AddReceiptChoice({ onCamera, onLost, title = 'Add receipt', onSeveral, onFile, onClose }: Props) {
   const photoRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [problem, setProblem] = useState('');
@@ -65,7 +68,7 @@ export default function AddReceiptChoice({ onCamera, onLost, onSeveral, onFile, 
 
   if (isPhone) {
     return (
-      <BottomDrawer title="Add receipt" onClose={onClose}>
+      <BottomDrawer title={title} onClose={onClose}>
         <div className="ccr-choice ccr-choice-phone">
           {problem ? <div className="ccr-form-error" role="alert">{problem}</div> : null}
 
@@ -85,12 +88,16 @@ export default function AddReceiptChoice({ onCamera, onLost, onSeveral, onFile, 
             </button>
           </div>
 
-          <div className="ccr-choice-label">No receipt?</div>
-          <button type="button" className="ccr-choice-row" onClick={onLost}>
-            <span className="ccr-choice-icon"><FileX size={22} aria-hidden="true" /></span>
-            <span className="ccr-choice-text"><b>Lost receipt</b><small>Say why and enter the details</small></span>
-            <ChevronRight size={20} className="ccr-choice-chev" aria-hidden="true" />
-          </button>
+          {onLost ? (
+            <>
+              <div className="ccr-choice-label">No receipt?</div>
+              <button type="button" className="ccr-choice-row" onClick={onLost}>
+                <span className="ccr-choice-icon"><FileX size={22} aria-hidden="true" /></span>
+                <span className="ccr-choice-text"><b>Lost receipt</b><small>Say why and enter the details</small></span>
+                <ChevronRight size={20} className="ccr-choice-chev" aria-hidden="true" />
+              </button>
+            </>
+          ) : null}
 
           {onSeveral ? (
             <>
@@ -109,7 +116,7 @@ export default function AddReceiptChoice({ onCamera, onLost, onSeveral, onFile, 
   }
 
   return (
-    <FormModal title="Add receipt" size="s" onClose={onClose} hideSubmit hideFooter>
+    <FormModal title={title} size="s" onClose={onClose} hideSubmit hideFooter>
       <div className="ccr-choice">
         {problem ? <div className="ccr-form-error" role="alert">{problem}</div> : null}
 
@@ -125,10 +132,12 @@ export default function AddReceiptChoice({ onCamera, onLost, onSeveral, onFile, 
           <span className="ccr-choice-icon"><FileText size={22} aria-hidden="true" /></span>
           <span className="ccr-choice-text"><b>Upload File</b><small>A PDF or image from Files</small></span>
         </button>
-        <button type="button" className="ccr-choice-opt" onClick={onLost}>
-          <span className="ccr-choice-icon"><FileX size={22} aria-hidden="true" /></span>
-          <span className="ccr-choice-text"><b>Lost Receipt</b><small>No receipt: say why and enter the details</small></span>
-        </button>
+        {onLost ? (
+          <button type="button" className="ccr-choice-opt" onClick={onLost}>
+            <span className="ccr-choice-icon"><FileX size={22} aria-hidden="true" /></span>
+            <span className="ccr-choice-text"><b>Lost Receipt</b><small>No receipt: say why and enter the details</small></span>
+          </button>
+        ) : null}
 
         {onSeveral ? (
           <button type="button" className="ccr-choice-opt" onClick={onSeveral}>

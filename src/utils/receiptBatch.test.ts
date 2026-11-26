@@ -29,7 +29,7 @@ describe('Add several receipts: the rules', () => {
   });
   it('sums up a finished batch', () => {
     expect(batchSummary([{ status: 'waiting', matchedMissing: true }, { status: 'waiting', matchedMissing: false }, { status: 'draft', matchedMissing: false }], 0))
-      .toBe('2 sent for approval · 1 saved as a draft · 1 matched a Missing receipt');
+      .toBe('2 sent for approval · 1 saved as a draft · 1 replaced a report row');
     expect(batchSummary([{ status: 'draft', matchedMissing: false }, { status: 'draft', matchedMissing: false }], 1)).toBe('2 saved as drafts · 1 didn’t save');
     expect(batchSummary([], 2)).toBe('2 didn’t save');
   });

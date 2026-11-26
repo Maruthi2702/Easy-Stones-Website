@@ -45,7 +45,7 @@ import './CardReceipts.css';
 export type CardReceiptsPageProps = { currentUser: ReceiptsUser | null; sidebarToggle?: ReactNode };
 
 type Tab = 'expenses' | 'waiting' | 'statements' | 'cards';
-type Open = { kind: 'choose' } | { kind: 'export' } | { kind: 'camera' } | { kind: 'several' } | { kind: 'add'; lost?: boolean; file?: File } | { kind: 'edit'; expense: Expense } | { kind: 'void'; expense: Expense } | { kind: 'delete'; expense: Expense } | { kind: 'bulk'; mode: 'void' | 'delete'; expenses: Expense[] }
+type Open = { kind: 'choose' } | { kind: 'export' } | { kind: 'camera' } | { kind: 'several' } | { kind: 'add'; lost?: boolean; file?: File } | { kind: 'edit'; expense: Expense; file?: File } | { kind: 'attach'; expense: Expense } | { kind: 'attach-camera'; expense: Expense } | { kind: 'void'; expense: Expense } | { kind: 'delete'; expense: Expense } | { kind: 'bulk'; mode: 'void' | 'delete'; expenses: Expense[] }
   | { kind: 'ask'; expense: Expense } | { kind: 'sendback'; expense: Expense } | { kind: 'reopen'; expense: Expense } | { kind: 'remind'; expenses: Expense[] } | null;
 
 /**
@@ -492,6 +492,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
           onDelete={() => setOpen({ kind: 'delete', expense: opened })}
           canRemind={canRemind}
           onEdit={() => setOpen({ kind: 'edit', expense: opened })}
+          onUploadReceipt={() => setOpen({ kind: 'attach', expense: opened })}
           onVoid={() => setOpen({ kind: 'void', expense: opened })}
           onApprove={async (comment) => {
             const saved = await data.approve(opened, comment);
@@ -527,6 +528,19 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
         />
       ) : null}
 
+      {open?.kind === 'attach' ? (
+        <AddReceiptChoice
+          title="Upload receipt"
+          onClose={() => setOpen(null)}
+          onCamera={() => setOpen({ kind: 'attach-camera', expense: open.expense })}
+          onFile={(file) => setOpen({ kind: 'edit', expense: open.expense, file })}
+        />
+      ) : null}
+
+      {open?.kind === 'attach-camera' ? (
+        <CameraCapture onClose={() => setOpen({ kind: 'attach', expense: open.expense })} onFile={(file) => setOpen({ kind: 'edit', expense: open.expense, file })} />
+      ) : null}
+
       {open?.kind === 'several' ? (
         <BulkReceiptsForm
           holders={addHolders}
@@ -551,7 +565,8 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
         <ExpenseForm
           expense={open.kind === 'edit' ? open.expense : null}
           startLost={open.kind === 'add' && Boolean(open.lost)}
-          initialFile={open.kind === 'add' ? open.file : null}
+          initialFile={open.file ?? null}
+          confirmCategory={open.kind === 'edit' && Boolean(open.file)}
           cardLabel={me?.card?.label || ''}
           cards={open.kind === 'edit' && !open.expense.mine ? [] : me?.cards || []}
           holders={canAddForOthers ? addHolders : []}
