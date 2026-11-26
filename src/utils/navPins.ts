@@ -63,7 +63,7 @@ export const NAV_ITEMS: NavItem[] = [
   // Team Files (src/features/teamFiles/): was the dashboard's Resources → Team Files, so it opens with the Dashboard.
   { id: 'team_files', label: 'Team Files', section: 'sales', canSee: (u: NavUser) => has(u, 'view_dashboard') },
   // Credit Card Receipts (src/features/cardReceipts/): any of its switches opens it. In Sales since 2026-11-19 (owner's ask; was Accounting).
-  { id: 'card_receipts', label: 'Credit Card Receipts', section: 'sales', canSee: (u: NavUser) => canOpenReceipts(u) },
+  { id: 'card_receipts', label: 'CC Receipts', section: 'sales', canSee: (u: NavUser) => canOpenReceipts(u) },
   {
     id: 'lost_sales', label: 'Lost Sales', section: 'sales',
     canSee: (u: NavUser) => canViewLostSales(u) || !u
