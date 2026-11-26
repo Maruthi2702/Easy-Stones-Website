@@ -47,14 +47,6 @@ body.light-theme-active .ccr-branch.is-dallas { background: rgba(154, 52, 18, 0.
 .ccr-sdot { width: 9px; height: 9px; border-radius: 50%; flex: none; box-sizing: border-box; display: inline-block; }
 .ccr-sdot.is-ok { background: #16a34a; } .ccr-sdot.is-wait { background: #d4af37; } .ccr-sdot.is-back { background: #e08a00; }
 .ccr-sdot.is-miss { background: #dc2626; } .ccr-sdot.is-none { background: transparent; border: 2px solid var(--ccr-muted); }
-/* Phone: one list box with divider lines (the Customers list on a phone). */
-.ccr-st-plist { display: flex; flex-direction: column; }
-.ccr-st-pcard { display: grid; gap: 2px; padding: 12px 14px; border-bottom: 1px solid var(--ccr-line-soft); }
-.ccr-st-pcard:last-child { border-bottom: 0; }
-.ccr-st-ptop { display: flex; align-items: baseline; gap: 10px; }
-.ccr-st-ptop b:first-child { flex: 1; min-width: 0; font-size: 15px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ccr-st-ptop b:last-child { font-weight: 650; font-variant-numeric: tabular-nums; }
-.ccr-st-pcard .ccr-stage { margin-top: 6px; }
 
 /* ── Filter dropdowns (the Customers tab's .cl-dd, on --ccr-* tokens) ── */
 .ccr-dd { position: relative; flex: none; }
@@ -109,7 +101,6 @@ body.light-theme-active .ccr-branch.is-dallas { background: rgba(154, 52, 18, 0.
 .ccr-st-warn > span { min-width: 0; }
 
 /* Phone: header row, filter button and its list, the current filter, and a line card */
-.ccr-st-ptop { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .ccr-st-pact { display: flex; align-items: center; gap: 8px; }
 .ccr-st-fbtn { position: relative; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--ccr-line); background: var(--ccr-surface); color: var(--ccr-text); display: grid; place-items: center; cursor: pointer; }
 .ccr-st-fbtn.has { border-color: var(--ccr-gold); }
@@ -120,8 +111,6 @@ body.light-theme-active .ccr-branch.is-dallas { background: rgba(154, 52, 18, 0.
 .ccr-st-opt span:last-child { font-variant-numeric: tabular-nums; opacity: 0.8; }
 .ccr-st-cur { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--ccr-muted); }
 .ccr-st-cur button { min-height: 32px; border: 0; background: none; color: var(--ccr-text); font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; }
-.ccr-st-pcard { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: start; cursor: default; }
-.ccr-st-pcard > .ccr-dot { margin-top: 6px; }
 .ccr-st-pm { display: grid; gap: 2px; min-width: 0; }
 .ccr-st-pa { display: grid; gap: 5px; justify-items: end; }
 

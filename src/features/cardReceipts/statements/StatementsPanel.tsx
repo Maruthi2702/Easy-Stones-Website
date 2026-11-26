@@ -5,6 +5,8 @@ import DashboardSearch from '../../../components/shared/DashboardSearch';
 import Pagination from '../../../components/shared/Pagination';
 import { usePagination } from '../../../components/shared/paginationConfig';
 import { formatMoney, monthLabel, usDate } from '../../../utils/cardReceipts';
+import { History } from 'lucide-react';
+import { groupByDay } from '../phoneList';
 import { LINE_STATUSES, lineStatusLabel, type Issuer, type LineStatus } from '../../../utils/amexStatement';
 import type { LineStage } from '../../../utils/statementStage';
 import * as api from './statementsApi';
@@ -36,8 +38,8 @@ const stageOf = (l: StatementLine): LineStage => l.stage ?? { tone: DOT[l.status
  * spacing. Rows carry no colour (every row is a statement line); the Status column says where the
  * receipt is in its approvals (statementStage.ts). Amex and Encore stay apart (one bank at a time, no "All").
  */
-export default function StatementsPanel({ month, isPhone, canCards, onOpenCards, onSaved, headSlot = null, tabSlot = null, onCount }: {
-  month: string; isPhone: boolean; canCards: boolean; onOpenCards: () => void; onSaved: (text: string) => void;
+export default function StatementsPanel({ month, today = '', isPhone, canCards, onOpenCards, onSaved, headSlot = null, tabSlot = null, onCount }: {
+  month: string; /** The branch's today, for the phone's day headings. */ today?: string; isPhone: boolean; canCards: boolean; onOpenCards: () => void; onSaved: (text: string) => void;
   /** The page header's tools box: the search and Upload statement go there (desktop). */
   headSlot?: HTMLElement | null;
   /** The tab row's right side: the Bank, Status and Cardholder dropdowns go there (desktop). */
@@ -136,24 +138,43 @@ export default function StatementsPanel({ month, isPhone, canCards, onOpenCards,
     </div>
   );
 
+  // Phone: the same facts as a card, with "Show them" turning the Status filter to the receipts still missing.
+  const phoneMeta = (
+    <div className="ccr-st-pmeta">
+      <div className="ccr-st-meta">
+        <span>{last ? `Last upload ${usDate(String(last.at).slice(0, 10))}${last.byName ? ` by ${last.byName}` : ''}` : `No ${name} statement uploaded yet`}</span>
+        {last ? <span>{periodLabel(last.periodFrom, last.periodTo)} · {last.lines.toLocaleString()} lines, {last.added.toLocaleString()} new</span> : null}
+      </div>
+      {missing ? (
+        <div className="ccr-st-split">
+          <span className={missing.count ? 'is-miss' : ''}><b>{missing.count ? `${missing.count.toLocaleString()} receipts missing` : 'No receipts missing'}</b>{missing.count ? <small>{formatMoney(missing.cents)} on {name} this month</small> : null}</span>
+          {missing.count ? <button type="button" className="ccr-btn" onClick={() => { setStatus('missing'); setHolder(''); }}>Show them</button> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+
   // On a computer the search and Upload go into the page header and the dropdowns onto the tab row, as on the Customers tab.
   const portaled = !isPhone && headSlot && tabSlot;
+  // On a phone only Upload goes up beside the title (a square gold button), so the three dropdowns share one row.
+  const uploadUp = isPhone && Boolean(headSlot);
 
   return (
     <div className="ccr-st">
       {portaled ? <>{createPortal(<>{searchBox}{uploadButton}</>, headSlot)}{createPortal(filters, tabSlot)}</> : (
         <>
           {searchBox}
-          <div className="ccr-st-bar">{filters}<span className="ccr-st-bar-end">{uploadButton}</span></div>
+          <div className="ccr-st-bar">{filters}{uploadUp ? null : <span className="ccr-st-bar-end">{uploadButton}</span>}</div>
+          {uploadUp ? createPortal(uploadButton, headSlot!) : null}
         </>
       )}
 
-      {lastLine}
+      {isPhone ? phoneMeta : lastLine}
       {error ? <div className="ccr-note is-error" role="alert">{error}</div> : null}
       {notice}
 
-      <div className={`ccr-box${loading ? ' is-loading' : ''}`} aria-busy={loading}>
-        {rows.length ? <Lines rows={paged} isPhone={isPhone} /> : (
+      <div className={`ccr-box${loading ? ' is-loading' : ''}${isPhone && rows.length ? ' is-flat' : ''}`} aria-busy={loading}>
+        {rows.length ? <Lines rows={paged} isPhone={isPhone} today={today} /> : (
           <div className="ccr-empty">
             {loading ? <span>Loading…</span> : base.length || holder ? <><h3>Nothing matches</h3><span>Clear the search or the filters.</span></>
               : <><h3>No {name} lines for {monthLabel(month)}</h3><span>Upload {bank === 'encore' ? 'Encore’s transactions export' : 'Amex’s activity export'} to check it against the receipts.</span></>}
@@ -163,7 +184,21 @@ export default function StatementsPanel({ month, isPhone, canCards, onOpenCards,
       <Pagination currentPage={pager.currentPage} totalPages={Math.max(1, Math.ceil(rows.length / pager.rowsPerPage))}
         onPageChange={pager.setCurrentPage} rowsPerPage={pager.rowsPerPage} onRowsPerPageChange={pager.setRowsPerPage} totalCount={rows.length} />
 
-      {bankImports.length ? (
+      {bankImports.length && isPhone ? (
+        <details className="ccr-st-up">
+          <summary><History size={17} aria-hidden="true" /><span>{name} uploads · {bankImports.length}</span></summary>
+          <div className="ccr-st-up-list">
+            {bankImports.map((i) => (
+              <div key={i.id} className="ccr-st-up-row">
+                <b>{usDate(String(i.at).slice(0, 10))} · {i.byName}</b>
+                <span>{periodLabel(i.periodFrom, i.periodTo)} · {i.lines.toLocaleString()} lines, {i.added.toLocaleString()} new · {formatMoney(i.chargesCents)}</span>
+              </div>
+            ))}
+          </div>
+        </details>
+      ) : null}
+
+      {bankImports.length && !isPhone ? (
         <div className="ccr-box">
           <h2 className="ccr-st-h">{name} uploads</h2>
           <div className="ccr-table-wrap">
@@ -203,22 +238,39 @@ function Stage({ stage }: { stage: LineStage }) {
 }
 
 /** Date · Cardholder & card · Merchant · Category · Amount · Status (owner's order, 2026-11-24). */
-function Lines({ rows, isPhone }: { rows: StatementLine[]; isPhone: boolean }) {
+function Lines({ rows, isPhone, today }: { rows: StatementLine[]; isPhone: boolean; today: string }) {
   const card = (l: StatementLine) => l.cardLabel || (l.digits ? `…${l.digits}` : 'no card');
   const amountClass = (l: StatementLine) => `ccr-amt${l.cents < 0 ? ' ccr-st-credit' : ''}`;
   if (isPhone) {
+    // The phone's list (owner's design, 2026-11-26): a heading per day, each line the cardholder and card ID, the merchant,
+    // the category, and on the right the amount and the stage as coloured words. Lines carry no row colour.
     return (
-      <div className="ccr-st-plist">
-        {rows.map((l) => {
-          return (
-            <div key={l.reference} className="ccr-st-pcard">
-              <div className="ccr-st-ptop"><b>{holderOfLine(l) || 'No cardholder'}</b><b className={amountClass(l)}>{formatMoney(l.cents)}</b></div>
-              <div className="ccr-st-sub">{l.description}</div>
-              <div className="ccr-st-sub">{usDate(l.date)} · {card(l)}</div>
-              <Stage stage={stageOf(l)} />
+      <div className="ccr-pdays">
+        {groupByDay(rows, today).map((g) => (
+          <section key={g.day} className="ccr-pday" aria-label={g.heading}>
+            <h2 className="ccr-day"><span>{g.heading}</span><span className="ccr-day-total">{formatMoney(g.cents)}</span></h2>
+            <div className="ccr-pbox">
+              {g.rows.map((l) => {
+                const stage = stageOf(l);
+                const cat = categoryParts(l.amexCategory);
+                return (
+                  <div key={l.reference} className="ccr-pr is-static">
+                    <span className="ccr-pr-main">
+                      <span className="ccr-pr-l1"><b>{holderOfLine(l) || 'No cardholder'}</b><span className="ccr-pr-id">{card(l)}</span></span>
+                      <span className="ccr-pr-m">{l.description}</span>
+                      <span className="ccr-pr-l3">{cat.main ? <span className="ccr-tag">{cat.main}</span> : null}</span>
+                    </span>
+                    <span className="ccr-pr-r">
+                      <span className={amountClass(l)}>{formatMoney(l.cents)}</span>
+                      <span className={`ccr-pr-st is-${stage.tone}`}>{stage.label}</span>
+                      {stage.detail ? <span className="ccr-pr-d" title={stage.detail}>{stage.detail}</span> : null}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          </section>
+        ))}
       </div>
     );
   }

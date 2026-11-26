@@ -770,3 +770,90 @@ describe('checks that never block (2026-11-24)', () => {
     expect(text()).toContain('This photo is already on your receipt (Chevron, $45.18, 10-03-2026, waiting for approval).');
   });
 });
+
+describe('on a phone (owner’s design, 2026-11-26)', () => {
+  const phone = (on: boolean) => {
+    window.matchMedia = ((q: string) => ({ matches: on, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, onchange: null, dispatchEvent: () => false })) as unknown as typeof window.matchMedia;
+  };
+  beforeEach(() => phone(true));
+  afterEach(() => { delete (window as { matchMedia?: unknown }).matchMedia; });
+
+  it('has the Customers header: search on its own row, the tabs, then Filters with the period beside it — and no Select button', async () => {
+    fake.waiting = [];
+    await show(['view_all_card_receipts', 'export_card_receipts']);
+    expect(document.querySelector('.ccr-psearch input')).toBeTruthy();
+    expect(document.querySelector('.ccr-more-sq')).toBeTruthy();
+    const bar = document.querySelector('.ccr-fbar') as HTMLElement;
+    expect(bar.querySelector('.lf-btn')).toBeTruthy();
+    expect(bar.textContent).toContain('October 2026');
+    // Not the old subtitle beside the title, and no Select button anywhere.
+    expect(document.querySelector('.ccr-head .ccr-ttl-sub')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Select' })).toBeNull();
+  });
+
+  it('lists receipts under a heading per day, holder and card ID first, with the status in words on the right', async () => {
+    fake.waiting = [];
+    await show(['view_all_card_receipts']);
+    const day = screen.getByRole('region', { name: 'Fri, Oct 9' });
+    // The day's total, and the row's own amount.
+    expect(within(day).getAllByText('$115.79')).toHaveLength(2);
+    const row = within(day).getByRole('button');
+    expect(within(row).getByText('Maruthi Ponugupati')).toBeTruthy();
+    expect(within(row).getByText('MARU92069')).toBeTruthy();
+    expect(within(row).getByText('JINYA Ramen Bar')).toBeTruthy();
+    expect(within(row).getByText('Waiting').className).toContain('is-wait');
+    expect(document.querySelector('.ccr-pr .ccr-av')).toBeNull();
+  });
+
+  it('shows Needs you as one card with Upload receipt, in place of the banner and the To do grid', async () => {
+    fake.waiting = [];
+    fake.todo = [exp('m9', { merchant: 'CHEVRON', cents: 7103, status: 'missing', receiptUrl: '', category: '', date: '2026-10-12' })];
+    await show(['use_card_receipts']);
+    expect(screen.getByRole('region', { name: 'Needs you' }).textContent).toContain('Needs you · 1');
+    expect(document.querySelector('.ccr-banner')).toBeNull();
+    expect(document.querySelector('.ccr-todos')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Upload receipt' }));
+    await settle();
+    expect(screen.getByRole('dialog').textContent).toContain('CHEVRON');
+  });
+
+  it('approves from a row in Waiting for me in one tap', async () => {
+    fake.waiting = [WAITING_SECOND];
+    await show(['approve_card_receipts', 'view_all_card_receipts']);
+    fireEvent.click(screen.getByRole('tab', { name: /Waiting for me/ }));
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    await settle();
+    const sent = fake.posted.find((p) => /\/expenses\/w2\/approve$/.test(p.url));
+    expect(sent).toBeTruthy();
+    expect(sent!.body.comment).toBe('');
+    expect(text()).toContain('Approved');
+  });
+
+  it('sends back from a row with a comment, and not without one', async () => {
+    fake.waiting = [{ ...WAITING_SECOND, id: 'w4', actions: ACCOUNTING_ACTIONS }];
+    await show(['approve_card_receipts', 'view_all_card_receipts']);
+    fireEvent.click(screen.getByRole('tab', { name: /Waiting for me/ }));
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'Send back' }));
+    await settle();
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Send back' }));
+    await settle();
+    expect(fake.posted.some((p) => /send-back$/.test(p.url))).toBe(false);
+    fireEvent.change(within(dialog).getByLabelText(/Comment/), { target: { value: 'Which customer was this for?' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Send back' }));
+    await settle();
+    const sent = fake.posted.find((p) => /\/expenses\/w4\/send-back$/.test(p.url));
+    expect(sent?.body.comment).toBe('Which customer was this for?');
+  });
+
+  it('leaves the desktop alone: the banner and To do grid are still there off a phone', async () => {
+    phone(false);
+    fake.waiting = [];
+    await show(['use_card_receipts']);
+    expect(document.querySelector('.ccr-psearch')).toBeNull();
+    expect(document.querySelector('.ccr-fbar')).toBeNull();
+    expect(document.querySelector('.ccr-tools')).toBeTruthy();
+  });
+});

@@ -1646,6 +1646,26 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   the browser, same rows as the Excel minus the link / approver / notes columns, 2,000-line cap, total of the whole month) is
   written by `exportFiles.ts`. Never opened in a real PDF reader yet.
 
+**The phone's receipt list (2026-11-26, on `feat/receipts-phone-design`; claude.ai artifact **Card Receipts — Expenses, Waiting,
+Statements**, https://claude.ai/artifact/6Kt9iNsjhiqfCGiWnf4ihe — boards "Phone 390 · proposed" and **variant B**; the owner's comments on it
+set every rule here).** Under 640px (`useIsPhone`) only; desktop and tablet are unchanged. The header is the Customers phone look: title +
+gold count + a square ⋯ (`.ccr-more-sq`), the search on its own row (`.ccr-psearch`), underlined tabs that scroll sideways, then a labelled
+**Filters** button with the period beside it (`.ccr-fbar`; the shared `LocationFilter` is restyled by CSS scoped to `.ccr`, its markup is
+untouched — the "Filters" word is a `::after`). The Statements month is its own row under the tabs and its Upload sits beside the title.
+Receipts are **under a heading per day with that day's total** (`groupByDay` / `dayHeading` in `phoneList.ts`, tested; "Today ·" and
+"Yesterday ·" on the branch's clock), each row (`components/PhoneRows.tsx`, Statements' lines too) **cardholder + card ID, merchant, category
+on the left; amount, the status as coloured words and what's still owed on the right**, no avatar and **no Select button**: **press and hold a
+row (450 ms) starts selecting** with that row ticked (`ListSelection.onStart`), then a tap ticks. The missing-receipt banner and To do grid
+are one **Needs you** card with Upload receipt / Finish it per row (`components/NeedsYou.tsx`); there is no month summary. **In Waiting for
+me a row has Send back / Approve buttons:** Approve approves in one tap only when nothing more is asked for — `approveButton` in
+`phoneList.ts` runs the drawer's own `approveProblem` with an empty comment, so a lost receipt ("Approve with comment"), an Admin's own
+receipt with no category ("Review") and a question to answer ("Answer") open the receipt instead; $150+ says "Approve · 1 of 2" or "Final
+approval". Send back opens a short comment form (`SendBackForm`), a question the viewer asked has Withdraw question. Statements, phone: the
+last upload is a card with "N receipts missing · Show them" (sets Status to Missing) and the uploads are behind one row (`<details>`).
+**Not changed:** the Filters panel itself (the canvas drew a chip sheet; the existing panel is kept), the round camera button (the canvas drew
+a rounded square), Cards tab on a phone. Checked in Chromium at 390px in dark and light with a stubbed API; **never on a real iPhone** —
+check press-and-hold (it also blocks the iOS callout and text selection on rows), the sideways tabs and the Approve buttons there.
+
 **Cards tab, in the Customers look** (2026-11-25, owner; claude.ai artifact **Cards tab redesign canvas**,
 https://claude.ai/artifact/T24JF9juv4RC2q4pwXELPZ): one entry per person with their Amex / Encore cards listed inside it, **sorted by
 location A–Z, then name A–Z, people with no holder last** (`src/features/cardReceipts/cardsView.ts`, tested). The page header holds

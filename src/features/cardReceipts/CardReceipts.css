@@ -688,3 +688,85 @@ body.light-theme-active .ccr-bank.is-encore { background: #f1e9ff; color: #5b21b
   .ccr-hold .ccr-cardlines { padding-left: 48px; gap: 6px; }
   .ccr-hold .ccr-cardline { min-height: 44px; }
 }
+
+/* ── Phone: the receipt list (owner's design, 2026-11-26; claude.ai canvas "Card Receipts — Expenses, Waiting,
+   Statements", variant B). Everything here is only on the elements the phone renders (PhoneRows, NeedsYou, the phone
+   header), so desktop and tablet are untouched; the few rules that restyle shared elements sit in the media query. ── */
+.ccr-box.is-flat { background: none; border: 0; border-radius: 0; overflow: visible; }
+.ccr-pdays { display: flex; flex-direction: column; gap: 4px; }
+.ccr-pday, .ccr-need { display: flex; flex-direction: column; }
+.ccr-day { margin: 0; padding: 10px 2px 6px; display: flex; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 700; color: var(--ccr-text-2); }
+.ccr-day-total { margin-left: auto; color: var(--ccr-muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ccr-pbox { background: var(--ccr-surface); border: 1px solid var(--ccr-line); border-radius: 12px; overflow: hidden; }
+.ccr-pbox.is-need { border-color: var(--ccr-gold-bd); }
+.ccr-pr { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 14px; row-gap: 10px; padding: 14px; border-top: 1px solid var(--ccr-line-soft); cursor: pointer;
+  -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.ccr-pr:first-child { border-top: 0; }
+.ccr-pr:focus-visible { outline: 2px solid var(--ccr-gold); outline-offset: -2px; }
+.ccr-pr.is-ok { background: var(--ccr-row-ok); }
+.ccr-pr.is-static { cursor: default; }
+.ccr-pr.is-ticking { grid-template-columns: 24px minmax(0, 1fr) auto; }
+.ccr-pr.is-ticking .ccr-card-tick { grid-row: 1; }
+.ccr-pr.is-ticked { background: var(--ccr-gold-tint); }
+.ccr-pr.is-off { opacity: 0.5; cursor: default; }
+.ccr-pr.is-ticking .ccr-pr-acts { display: none; }
+.ccr-pr-main { min-width: 0; display: grid; gap: 3px; align-content: start; }
+.ccr-pr-l1 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; min-width: 0; }
+.ccr-pr-l1 b { font-size: 15px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; max-width: 100%; }
+.ccr-pr-id { flex: none; font-size: 12.5px; font-weight: 600; color: var(--ccr-muted); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+/* A long merchant (a bank's line: THE HOME DEPOT #4712) wraps to a second line rather than being cut off. */
+.ccr-pr-m { font-size: 17px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.ccr-pr-l3 { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 3px; }
+.ccr-pr-l3:empty { display: none; }
+.ccr-pr-r { display: grid; align-content: start; justify-items: end; gap: 4px; text-align: right; min-width: 0; max-width: 150px; }
+.ccr-pr-r .ccr-amt { font-size: 18px; font-weight: 750; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ccr-pr-r .ccr-amt.is-big { font-size: 16px; }
+.ccr-pr-r .ccr-amt.ccr-st-credit { color: #16a34a; }
+.ccr-pr-st { font-size: 13.5px; font-weight: 700; line-height: 1.25; }
+.ccr-pr-st.is-ok { color: var(--ccr-ok); } .ccr-pr-st.is-wait { color: var(--ccr-wait); } .ccr-pr-st.is-miss { color: var(--ccr-miss); }
+.ccr-pr-st.is-back { color: var(--ccr-back); } .ccr-pr-st.is-draft { color: var(--ccr-draft); } .ccr-pr-st.is-none { color: var(--ccr-muted); font-weight: 600; }
+.ccr-pr-d { max-width: 100%; font-size: 12px; color: var(--ccr-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ccr-pr-main .ccr-pr-d { font-size: 13.5px; text-align: left; white-space: normal; }
+.ccr-pr-acts { grid-column: 1 / -1; display: flex; gap: 8px; }
+.ccr-pr-acts .ccr-btn { flex: 1; height: 44px; padding: 0 12px; }
+.ccr-pr-acts .ccr-btn.gold { flex: 1.3; }
+.ccr-pr.is-solo .ccr-pr-acts .ccr-btn { flex: 1; }
+
+/* Statements, phone: the last upload as a card, and the uploads behind one row. */
+.ccr-st-pmeta { background: var(--ccr-surface); border: 1px solid var(--ccr-line); border-radius: 12px; overflow: hidden; }
+.ccr-st-pmeta .ccr-st-meta { display: grid; gap: 3px; padding: 12px 14px; }
+.ccr-st-split { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-top: 1px solid var(--ccr-line-soft); }
+.ccr-st-split > span { flex: 1; display: grid; gap: 1px; min-width: 0; }
+.ccr-st-split b { font-size: 16px; font-weight: 750; }
+.ccr-st-split .is-miss b { color: var(--ccr-miss); }
+.ccr-st-split small { font-size: 12.5px; color: var(--ccr-muted); }
+.ccr-st-split .ccr-btn { height: 44px; }
+.ccr-st-up summary { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 14px; border: 1px solid var(--ccr-line); border-radius: 12px; background: var(--ccr-surface); font-weight: 600; cursor: pointer; list-style: none; }
+.ccr-st-up summary::-webkit-details-marker { display: none; }
+.ccr-st-up summary span { flex: 1; }
+.ccr-st-up[open] summary { border-radius: 12px 12px 0 0; }
+.ccr-st-up-list { border: 1px solid var(--ccr-line); border-top: 0; border-radius: 0 0 12px 12px; background: var(--ccr-surface); }
+.ccr-st-up-row { display: grid; gap: 2px; padding: 12px 14px; border-top: 1px solid var(--ccr-line-soft); }
+.ccr-st-up-row:first-child { border-top: 0; }
+.ccr-st-up-row b { font-weight: 600; }
+.ccr-st-up-row span { font-size: 13px; color: var(--ccr-muted); }
+
+@media (max-width: 639px) {
+  /* The Customers phone header: title + gold count + a square ⋯, search on its own row, tabs that scroll sideways,
+     then a Filters button with the period beside it. */
+  .ccr-head { flex-wrap: nowrap; }
+  .ccr-ttl { flex: 1; flex-wrap: nowrap; }
+  .ccr-more-sq { margin-left: auto; flex: none; }
+  .ccr-more-sq .row-menu-btn { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--ccr-line); background: var(--ccr-surface); color: var(--ccr-text-2); }
+  .ccr-psearch .dsx, .ccr-st > .dsx { flex: none; width: 100%; max-width: none; height: 44px; border-radius: 12px; }
+  .ccr-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
+  .ccr-tabs::-webkit-scrollbar { display: none; }
+  .ccr-tabs .ccr-tab { flex: none; }
+  /* The header's tool slot (Statements' Upload goes there on a phone) sits beside the title; empty, it takes no room. */
+  .ccr-head .ccr-tools { order: 0; flex: none; margin-left: auto; }
+  .ccr-head .ccr-tools:empty { display: none; }
+  .ccr-head .ccr-tools .ccr-btn.gold { width: 40px; height: 40px; padding: 0; border-radius: 10px; }
+  .ccr-fbar { display: flex; align-items: center; gap: 12px; }
+  .ccr .ccr-fbar .lf .lf-btn { width: auto !important; height: 36px !important; padding: 0 12px 0 10px !important; border-radius: 8px !important; gap: 7px; }
+  .ccr .ccr-fbar .lf .lf-btn::after { content: 'Filters'; font-size: 13.5px; font-weight: 550; }
+}

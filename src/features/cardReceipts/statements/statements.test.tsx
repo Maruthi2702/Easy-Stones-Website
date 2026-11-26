@@ -3,7 +3,7 @@
 // Amex check switch, shows the month's lines with their status and the cards not set up, and a
 // tile filters the list. The API is a fake keyed on the URL.
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import { render, cleanup, fireEvent, act } from '@testing-library/react';
+import { render, cleanup, fireEvent, act, screen, within } from '@testing-library/react';
 import { periodLabel, personOptions, visibleLines } from './statementsView';
 import type { StatementLine } from './statementsApi';
 
@@ -132,6 +132,50 @@ describe('the Statements tab', () => {
     render(<CardReceiptsPage currentUser={{ _id: 'u1', displayName: 'Maruthi', permissions: ['use_card_receipts', 'view_all_card_receipts'] }} />);
     await settle();
     expect([...document.querySelectorAll('.ccr-tab')].map((t) => t.textContent)).not.toContain('Statements');
+  });
+});
+
+describe('the Statements tab on a phone (owner’s design, 2026-11-26)', () => {
+  const phone = (on: boolean) => {
+    window.matchMedia = ((q: string) => ({ matches: on, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, onchange: null, dispatchEvent: () => false })) as unknown as typeof window.matchMedia;
+  };
+  beforeEach(() => phone(true));
+  afterEach(() => { delete (window as { matchMedia?: unknown }).matchMedia; });
+  const open = async () => {
+    render(<CardReceiptsPage currentUser={{ _id: 'a1', displayName: 'Ann Count', permissions: ['check_amex_statements'] }} />);
+    await settle();
+  };
+
+  it('lists lines under a heading per day, holder and card ID first, the stage as coloured words on the right', async () => {
+    await open();
+    const day = screen.getAllByRole('region', { name: 'Thu, Nov 5' })[0]!;
+    const row = within(day).getByText('JINYA RAMEN BAR').closest('.ccr-pr') as HTMLElement;
+    expect(within(row).getByText('Maruthi Ponugupati')).toBeTruthy();
+    expect(within(row).getByText('MARU92069')).toBeTruthy();
+    expect(within(row).getByText('Waiting for Accounting').className).toContain('is-wait');
+    expect(within(row).getByText('Receipt of 11-05')).toBeTruthy();
+    expect(row.className).not.toContain('is-ok');
+    // A credit is green and a line with no card says so.
+    expect(text()).toContain('−$500.00');
+  });
+
+  it('says what is missing in a card, and Show them filters to those lines', async () => {
+    await open();
+    expect(document.querySelector('.ccr-st-split')?.textContent).toContain('3 receipts missing');
+    expect(screen.queryByText('ONLINE PAYMENT - THANK YOU')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Show them' }));
+    await settle();
+    expect(screen.queryByText('ONLINE PAYMENT - THANK YOU')).toBeNull();
+    expect(screen.getByText('CHEVRON 0207730')).toBeTruthy();
+  });
+
+  it('keeps the uploads behind one row', async () => {
+    await open();
+    const details = document.querySelector('details.ccr-st-up') as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    expect(details.querySelector('summary')?.textContent).toContain('Amex uploads · 1');
+    expect(details.textContent).toContain('Ann Count');
+    expect(document.querySelector('table.ccr-st-uploads')).toBeNull();
   });
 });
 

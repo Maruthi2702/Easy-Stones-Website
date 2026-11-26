@@ -20,6 +20,9 @@ import { useSavedFilters } from './useSavedFilters';
 import { savedPeopleKey } from './savedFilters';
 import { NO_FILTERS, STATEMENT_FILTERS, TODO_SHOWN, WAIT_FILTERS, byWaitFilter, holderPeople, remindable, statusLine, visibleExpenses, waitCounts, type ReceiptFilters, type WaitFilter } from './cardReceiptsView';
 import ExpenseList, { type ListSelection } from './components/ExpenseList';
+import NeedsYou from './components/NeedsYou';
+import SendBackForm from './components/SendBackForm';
+import type { QuickActions } from './components/PhoneRows';
 import ExpenseDrawer from './components/ExpenseDrawer';
 import AskForm from './components/AskForm';
 import ReopenForm from './components/ReopenForm';
@@ -43,7 +46,7 @@ export type CardReceiptsPageProps = { currentUser: ReceiptsUser | null; sidebarT
 
 type Tab = 'expenses' | 'waiting' | 'statements' | 'cards';
 type Open = { kind: 'choose' } | { kind: 'export' } | { kind: 'camera' } | { kind: 'several' } | { kind: 'add'; lost?: boolean; file?: File } | { kind: 'edit'; expense: Expense } | { kind: 'void'; expense: Expense } | { kind: 'delete'; expense: Expense } | { kind: 'bulk'; mode: 'void' | 'delete'; expenses: Expense[] }
-  | { kind: 'ask'; expense: Expense } | { kind: 'reopen'; expense: Expense } | { kind: 'remind'; expenses: Expense[] } | null;
+  | { kind: 'ask'; expense: Expense } | { kind: 'sendback'; expense: Expense } | { kind: 'reopen'; expense: Expense } | { kind: 'remind'; expenses: Expense[] } | null;
 
 /**
  * Sales → Credit Card Receipts (2026-11-05). Design: the claude.ai
@@ -143,9 +146,24 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const toggleAll = () => setSelected(allShown ? new Set() : new Set(remindRows.map((e) => e.id)));
   const clearSelection = () => { setSelected(new Set()); setSelecting(false); };
-  const selection: ListSelection | null = remindRows.length && (!isPhone || selecting)
-    ? { selected, onToggle: toggle, allShown, onToggleAll: toggleAll, active: selecting, selectable }
+  // A phone has no Select button (owner, 2026-11-26): press and hold a row starts selecting with that row ticked.
+  const selection: ListSelection | null = remindRows.length
+    ? { selected, onToggle: toggle, allShown, onToggleAll: toggleAll, active: selecting, selectable, onStart: (id) => { setSelecting(true); setSelected(new Set([id])); } }
     : null;
+  // A row in Waiting for me (phone) approves in one tap when nothing more is asked for, and sends back with a short form.
+  const [busyId, setBusyId] = useState('');
+  const quick: QuickActions | undefined = isPhone && tab === 'waiting' ? {
+    busyId,
+    approve: async (e) => {
+      setBusyId(e.id);
+      try { const saved = await data.approve(e, ''); say(saved.status === 'approved' ? 'Approved' : 'Approval saved'); } catch (err) { say((err as Error).message || 'Couldn’t approve it'); } finally { setBusyId(''); }
+    },
+    sendBack: (e) => setOpen({ kind: 'sendback', expense: e }),
+    withdraw: async (e) => {
+      setBusyId(e.id);
+      try { await data.withdrawAsk(e); say('Question withdrawn'); } catch (err) { say((err as Error).message || 'Couldn’t withdraw it'); } finally { setBusyId(''); }
+    }
+  } : undefined;
 
   const opened = openId ? source.find((e) => e.id === openId) || data.expenses.find((e) => e.id === openId) || data.waiting.find((e) => e.id === openId)
     || data.todo.find((e) => e.id === openId) || null : null;
@@ -235,6 +253,73 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
     : `${periodName} · ${data.viewAll ? (data.teamOnly ? 'Your team' : 'All cardholders') : me?.card ? `${me.card.label}${me.user.location ? ` · ${me.user.location}` : ''}` : 'Your receipts'}`;
   const titleCount = tab === 'waiting' ? data.waiting.length : tab === 'statements' ? statementCount : tab === 'cards' ? (cardsSummary?.total ?? null) : rows.length;
 
+  const searchNode = (
+        <DashboardSearch value={filters.search} onChange={(search) => patchFilters({ search })} label="Search expenses"
+          placeholder="Search merchant, cardholder, note" count={filters.search ? `${rows.length} of ${base.length}` : null} />
+  );
+  const filterNode = (
+        <LocationFilter
+          options={[]}
+          value=""
+          onChange={() => {}}
+          user={currentUser}
+          active={filtered || periodOn}
+          wide
+          onClear={clearFilters}
+          activeCount={(periodOn ? 1 : 0) + (queueActive ? 1 : 0) + (peopleFilter.active ? 1 : 0) + (filters.category ? 1 : 0) + (filters.bank ? 1 : 0) + (filters.statement ? 1 : 0) + (filters.status !== 'all' ? 1 : 0)}
+          doneLabel={rows.length ? `Show ${rows.length} receipt${rows.length === 1 ? '' : 's'}` : 'No receipts match'}
+        >
+          {/* Card, Status, Category, Cardholder — each choice says how many receipts it would show
+              given the others (the Follow-ups panel's "Label · 3" format). */}
+          <div className="fm-tokens ccr-fields">
+            {tab === 'expenses' && data.month ? <PeriodField month={data.month} range={data.range} today={me?.today || ''} onMonth={data.setMonth} onRange={data.setRange} /> : null}
+            {queueField ? (
+              <div className="lf-group">
+                <label className="lf-group-label" htmlFor="ccr-f-queue">Queue</label>
+                <FormPicker id="ccr-f-queue" value={waitFilter} onChange={(v) => setWaitFilter(v as WaitFilter)}
+                  options={WAIT_FILTERS.map((f) => ({ value: f.key, label: `${f.label} · ${waitN[f.key]}` }))}
+                  sheetTitle="Queue" keepInForm />
+              </div>
+            ) : null}
+            {data.viewAll || canExport || canExportAll ? (
+              <div className="lf-group" role="group" aria-labelledby="ccr-f-bank">
+                <span className="lf-group-label" id="ccr-f-bank">Card</span>
+                <SegmentedToggle<string>
+                  label="Card"
+                  value={filters.bank}
+                  onChange={(bank) => patchFilters({ bank })}
+                  options={[{ value: '', label: `All · ${counts.bank['']}` }, ...BANK_FILTERS.map((b) => ({ value: b.key, label: `${b.label} · ${counts.bank[b.key]}` }))]}
+                />
+              </div>
+            ) : null}
+            {/* Cardholder is second, right under Card, so its list has the panel's room below it. */}
+            {people.length > 1 ? <PeopleField {...peopleFilter.field} /> : null}
+            <div className="lf-group">
+              <label className="lf-group-label" htmlFor="ccr-f-status">Status</label>
+              <FormPicker id="ccr-f-status" value={filters.status} onChange={(status) => patchFilters({ status })}
+                options={[{ value: 'all', label: `Every status · ${counts.status.all}` }, ...STATUSES.map((s) => ({ value: s.key, label: `${s.label} · ${counts.status[s.key]}` }))]}
+                sheetTitle="Status" keepInForm />
+            </div>
+            <div className="lf-group">
+              <label className="lf-group-label" htmlFor="ccr-f-statement">Statement</label>
+              <FormPicker id="ccr-f-statement" value={filters.statement} onChange={(statement) => patchFilters({ statement })}
+                options={[{ value: '', label: `All · ${counts.statement['']}` }, ...STATEMENT_FILTERS.map((s) => ({ value: s.key, label: `${s.label} · ${counts.statement[s.key]}` }))]}
+                sheetTitle="Statement" keepInForm />
+            </div>
+            <div className="lf-group">
+              <label className="lf-group-label" htmlFor="ccr-f-category">Category</label>
+              <FormPicker id="ccr-f-category" value={filters.category} onChange={(category) => patchFilters({ category })}
+                options={[{ value: '', label: `Every category · ${counts.category['']}` }, ...categories.map((c) => ({ value: c.name, label: `${c.label} · ${counts.category[c.name] ?? 0}` }))]}
+                sheetTitle="Category" keepInForm />
+            </div>
+          </div>
+        </LocationFilter>
+  );
+  const moreNode = (exportItems.length || bulkItems.length) ? <RowMenu label="More" items={[...exportItems, ...bulkItems.map((it, i) => (i === 0 && exportItems.length ? { ...it, divider: true } : it))]} /> : null;
+  const phoneHead = isPhone && tab !== 'cards' && tab !== 'statements';
+  // What the phone's filter row says beside the Filters button: the period (or what's waiting).
+  const phoneSub = tab === 'waiting' ? subtitle : periodName;
+
   return (
     <div className="ccr">
       <div className="ccr-page">
@@ -243,75 +328,19 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
           <div className="ccr-ttl">
             <h1>{isPhone && !data.viewAll ? 'Card receipts' : 'Credit Card Receipts'}</h1>
             {titleCount != null ? <span className="ccr-hcount">{titleCount.toLocaleString()}</span> : null}
-            {subtitle ? <span className="ccr-ttl-sub">{subtitle}</span> : null}
+            {subtitle && !phoneHead ? <span className="ccr-ttl-sub">{subtitle}</span> : null}
           </div>
           {tab === 'statements' || tab === 'cards' ? <div className="ccr-tools" ref={setHeadSlot} /> : null}
-          {tab !== 'cards' && tab !== 'statements' ? (
+          {tab !== 'cards' && tab !== 'statements' && !isPhone ? (
             <div className="ccr-tools">
-              <DashboardSearch value={filters.search} onChange={(search) => patchFilters({ search })} label="Search expenses"
-                placeholder="Search merchant, cardholder, note" count={filters.search ? `${rows.length} of ${base.length}` : null} />
-              {/* One round Filters button on every screen size (the dashboard's), holding Queue, Card, Status, Statement,
-                  Category and People (2026-11-24, owner: the tab-row dropdowns moved into it). */}
-              <LocationFilter
-                options={[]}
-                value=""
-                onChange={() => {}}
-                user={currentUser}
-                active={filtered || periodOn}
-                wide
-                onClear={clearFilters}
-                activeCount={(periodOn ? 1 : 0) + (queueActive ? 1 : 0) + (peopleFilter.active ? 1 : 0) + (filters.category ? 1 : 0) + (filters.bank ? 1 : 0) + (filters.statement ? 1 : 0) + (filters.status !== 'all' ? 1 : 0)}
-                doneLabel={rows.length ? `Show ${rows.length} receipt${rows.length === 1 ? '' : 's'}` : 'No receipts match'}
-              >
-                {/* Card, Status, Category, Cardholder — each choice says how many receipts it would show
-                    given the others (the Follow-ups panel's "Label · 3" format). */}
-                <div className="fm-tokens ccr-fields">
-                  {tab === 'expenses' && data.month ? <PeriodField month={data.month} range={data.range} today={me?.today || ''} onMonth={data.setMonth} onRange={data.setRange} /> : null}
-                  {queueField ? (
-                    <div className="lf-group">
-                      <label className="lf-group-label" htmlFor="ccr-f-queue">Queue</label>
-                      <FormPicker id="ccr-f-queue" value={waitFilter} onChange={(v) => setWaitFilter(v as WaitFilter)}
-                        options={WAIT_FILTERS.map((f) => ({ value: f.key, label: `${f.label} · ${waitN[f.key]}` }))}
-                        sheetTitle="Queue" keepInForm />
-                    </div>
-                  ) : null}
-                  {data.viewAll || canExport || canExportAll ? (
-                    <div className="lf-group" role="group" aria-labelledby="ccr-f-bank">
-                      <span className="lf-group-label" id="ccr-f-bank">Card</span>
-                      <SegmentedToggle<string>
-                        label="Card"
-                        value={filters.bank}
-                        onChange={(bank) => patchFilters({ bank })}
-                        options={[{ value: '', label: `All · ${counts.bank['']}` }, ...BANK_FILTERS.map((b) => ({ value: b.key, label: `${b.label} · ${counts.bank[b.key]}` }))]}
-                      />
-                    </div>
-                  ) : null}
-                  {/* Cardholder is second, right under Card, so its list has the panel's room below it. */}
-                  {people.length > 1 ? <PeopleField {...peopleFilter.field} /> : null}
-                  <div className="lf-group">
-                    <label className="lf-group-label" htmlFor="ccr-f-status">Status</label>
-                    <FormPicker id="ccr-f-status" value={filters.status} onChange={(status) => patchFilters({ status })}
-                      options={[{ value: 'all', label: `Every status · ${counts.status.all}` }, ...STATUSES.map((s) => ({ value: s.key, label: `${s.label} · ${counts.status[s.key]}` }))]}
-                      sheetTitle="Status" keepInForm />
-                  </div>
-                  <div className="lf-group">
-                    <label className="lf-group-label" htmlFor="ccr-f-statement">Statement</label>
-                    <FormPicker id="ccr-f-statement" value={filters.statement} onChange={(statement) => patchFilters({ statement })}
-                      options={[{ value: '', label: `All · ${counts.statement['']}` }, ...STATEMENT_FILTERS.map((s) => ({ value: s.key, label: `${s.label} · ${counts.statement[s.key]}` }))]}
-                      sheetTitle="Statement" keepInForm />
-                  </div>
-                  <div className="lf-group">
-                    <label className="lf-group-label" htmlFor="ccr-f-category">Category</label>
-                    <FormPicker id="ccr-f-category" value={filters.category} onChange={(category) => patchFilters({ category })}
-                      options={[{ value: '', label: `Every category · ${counts.category['']}` }, ...categories.map((c) => ({ value: c.name, label: `${c.label} · ${counts.category[c.name] ?? 0}` }))]}
-                      sheetTitle="Category" keepInForm />
-                  </div>
-                </div>
-              </LocationFilter>
-              {exportItems.length || bulkItems.length ? <RowMenu label="More" items={[...exportItems, ...bulkItems.map((it, i) => (i === 0 && exportItems.length ? { ...it, divider: true } : it))]} /> : null}
+              {searchNode}
+              {filterNode}
+              {moreNode}
             </div>
           ) : null}
+          {phoneHead && moreNode ? <div className="ccr-more-sq">{moreNode}</div> : null}
         </div>
+        {phoneHead ? <div className="ccr-psearch">{searchNode}</div> : null}
 
         {showWaiting || canCards || canStatements ? (
           <div className="ccr-tabs" role="tablist">
@@ -333,10 +362,14 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
                 <CreditCard size={17} aria-hidden="true" />Cards
               </button>
             ) : null}
-            {tab === 'statements' && data.month ? <PeriodBar month={data.month} today={me?.today || ''} onMonth={data.setMonth} /> : null}
+            {tab === 'statements' && data.month && !isPhone ? <PeriodBar month={data.month} today={me?.today || ''} onMonth={data.setMonth} /> : null}
             {tab === 'statements' && !isPhone ? <span className="ccr-tab-tools" ref={setTabSlot} /> : null}
           </div>
         ) : null}
+        {/* Phone: the Statements month is its own row under the tabs, so the tabs can scroll sideways. */}
+        {isPhone && tab === 'statements' && data.month ? <PeriodBar month={data.month} today={me?.today || ''} onMonth={data.setMonth} /> : null}
+        {/* Phone: the Filters button under the tabs with the period beside it (the Customers tab's filter row). */}
+        {phoneHead ? <div className="ccr-fbar">{filterNode}{phoneSub ? <span className="ccr-ttl-sub">{phoneSub}</span> : null}</div> : null}
 
         {data.error ? <div className="ccr-note is-error" role="alert">{data.error}</div> : null}
         {tab === 'waiting' && data.waitingError ? (
@@ -350,12 +383,16 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
           <CardsPanel canManage={can(currentUser, CARD_RECEIPTS.MANAGE_CARDS)} canSetUp={canStatements} month={data.month || ''} onSaved={say}
             user={currentUser} headSlot={headSlot} onSummary={setCardsSummary} />
         ) : tab === 'statements' ? (
-          data.month ? <StatementsPanel month={data.month} isPhone={isPhone} canCards={canCards} onOpenCards={() => setTab('cards')}
+          data.month ? <StatementsPanel month={data.month} today={me?.today || ''} isPhone={isPhone} canCards={canCards} onOpenCards={() => setTab('cards')}
             headSlot={headSlot} tabSlot={tabSlot} onCount={setStatementCount}
             onSaved={(text) => { say(text); data.reload(); }} /> : null
         ) : (
           <>
-            {tab === 'expenses' && missingMine.length ? (
+            {isPhone && tab === 'expenses' ? (
+              <NeedsYou todo={todo} categories={categories} expanded={allTodo} onToggle={() => setAllTodo((a) => !a)} onOpen={(e) => setOpenId(e.id)} />
+            ) : null}
+
+            {!isPhone && tab === 'expenses' && missingMine.length ? (
               <div className="ccr-note is-warn ccr-banner" role="status">
                 <AlertTriangle size={16} aria-hidden="true" />
                 <span>
@@ -368,7 +405,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
               </div>
             ) : null}
 
-            {tab === 'expenses' && todo.length ? (
+            {!isPhone && tab === 'expenses' && todo.length ? (
               <section className="ccr-todos" aria-label="To do">
                 <h2 className="ccr-todo-h">To do · {todo.length}</h2>
                 <div className="ccr-todo-grid">
@@ -387,10 +424,6 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
               </section>
             ) : null}
 
-            {isPhone && tab === 'expenses' && todo.length && rows.length ? (
-              <h2 className="ccr-todo-h" style={{ display: 'flex' }}>{periodRange ? periodName : data.month ? monthLabel(data.month).split(' ')[0] : ''}<span style={{ marginLeft: 'auto', textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}>{formatMoney(shown.cents)} · {shown.count}</span></h2>
-            ) : null}
-
             {remindRows.length && (ticked.length || (isPhone && selecting)) ? (
               <div className="ccr-selbar" role="region" aria-label="Selected receipts">
                 <span className="ccr-selbar-n">{ticked.length} selected</span>
@@ -398,17 +431,13 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
                 {!allShown ? <button type="button" className="ccr-btn" onClick={toggleAll}>Select all shown</button> : null}
                 <button type="button" className="ccr-btn" onClick={clearSelection}>{isPhone ? 'Cancel' : 'Clear'}</button>
               </div>
-            ) : remindRows.length && isPhone ? (
-              <div className="ccr-selbar is-idle">
-                <button type="button" className="ccr-btn" onClick={() => setSelecting(true)}>Select</button>
-              </div>
             ) : null}
 
-            <div className={`ccr-box${data.loading ? ' is-loading' : ''}`} aria-busy={data.loading}>
+            <div className={`ccr-box${data.loading ? ' is-loading' : ''}${isPhone && rows.length ? ' is-flat' : ''}`} aria-busy={data.loading}>
               {rows.length ? (
                 <ExpenseList rows={paged} isPhone={isPhone} categories={categories} showHolder={tab === 'waiting' || data.viewAll}
                   shownCents={shown.cents} shownCount={shown.count} onOpen={(e) => setOpenId(e.id)} selection={selection}
-                  rowActions={showRowActions ? rowActions : undefined} />
+                  rowActions={showRowActions ? rowActions : undefined} today={me?.today || ''} quick={quick} />
               ) : (
                 <div className="ccr-empty">
                   {data.loading ? <span>Loading…</span> : tab === 'waiting' && data.waitingError ? (
@@ -561,6 +590,11 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
       {open?.kind === 'ask' ? (
         <AskForm expense={open.expense} loadTargets={data.askTargets} onClose={() => setOpen(null)}
           onAsk={async (to, question) => { await data.ask(open.expense, to, question); setOpen(null); say('Question sent'); }} />
+      ) : null}
+
+      {open?.kind === 'sendback' ? (
+        <SendBackForm expense={open.expense} onClose={() => setOpen(null)}
+          onSendBack={async (comment) => { await data.sendBack(open.expense, comment); setOpen(null); say('Sent back'); }} />
       ) : null}
 
       {open?.kind === 'reopen' ? (

@@ -1,10 +1,10 @@
 import RowMenu from '../../../components/shared/RowMenu';
 import type { RowMenuItem } from '../../../components/shared/RowMenu';
-import { Check } from 'lucide-react';
 import { formatMoney, isBigReceipt, statusOf, usDate } from '../../../utils/cardReceipts';
 import { statementKindLabel } from '../../../utils/statementRows';
 import { askIsOpen, categoryText, chipText, chipsShown, firstName, isPdfUrl, statusLine } from '../cardReceiptsView';
 import { branchClass } from '../statements/statementsView';
+import PhoneRows, { type QuickActions } from './PhoneRows';
 import type { Category, Expense } from '../types';
 
 export function StatusChip({ status }: { status: string }) {
@@ -79,6 +79,8 @@ export type ListSelection = {
   active: boolean;
   /** Which rows have a checkbox (can be reminded about, voided or deleted). */
   selectable: (e: Expense) => boolean;
+  /** Phone: press and hold a row starts selecting, with that row ticked (there is no Select button). */
+  onStart?: (id: string) => void;
 };
 
 export type ExpenseListProps = {
@@ -94,6 +96,10 @@ export type ExpenseListProps = {
   selection?: ListSelection | null;
   /** A desktop row's ⋯ (Void, Delete…); a row with no items shows none. Phone cards open the receipt, whose ⋯ has them. */
   rowActions?: (e: Expense) => RowMenuItem[];
+  /** The branch's today, for the phone's "Today" / "Yesterday" day headings. */
+  today?: string;
+  /** Phone, Waiting for me: Send back / Approve on the row. */
+  quick?: QuickActions;
 };
 
 /**
@@ -102,7 +108,7 @@ export type ExpenseListProps = {
  * opens the expense. With Send reminders a checkbox column (a phone's Select
  * mode) ticks receipts that aren't approved yet.
  */
-export default function ExpenseList({ rows, isPhone, categories, showHolder, shownCents, shownCount, onOpen, selection = null, rowActions }: ExpenseListProps) {
+export default function ExpenseList({ rows, isPhone, categories, showHolder, shownCents, shownCount, onOpen, selection = null, rowActions, today = '', quick }: ExpenseListProps) {
   const total = (
     <>
       <span>{shownCount} {shownCount === 1 ? 'expense' : 'expenses'}</span>
@@ -110,35 +116,7 @@ export default function ExpenseList({ rows, isPhone, categories, showHolder, sho
     </>
   );
   if (isPhone) {
-    const ticking = Boolean(selection?.active);
-    return (
-      <div className="ccr-cards">
-        {rows.map((e) => {
-          const line = statusLine(e, categories);
-          const chips = e.status === 'waiting' ? chipsShown(e) : [];
-          const canTick = ticking && Boolean(selection?.selectable(e));
-          const ticked = Boolean(selection?.selected.has(e.id));
-          return (
-            <button key={e.id} type="button" className={`ccr-card${ticking ? ' is-ticking' : ''}${ticked ? ' is-ticked' : ''}${rowTone(e) ? ` ${rowTone(e)}` : ''}`}
-              disabled={ticking && !canTick}
-              aria-pressed={ticking ? ticked : undefined}
-              onClick={() => (ticking ? selection!.onToggle(e.id) : onOpen(e))}>
-              {ticking ? <span className="ccr-card-tick" aria-hidden="true">{ticked ? <Check size={14} strokeWidth={3} /> : null}</span> : null}
-              <b>{e.merchant}</b>
-              <span className={`ccr-amt${isBigReceipt(e.cents) ? ' is-big' : ''}`} title={isBigReceipt(e.cents) ? '$150 or more' : undefined}>{formatMoney(e.cents)}</span>
-              <span className="ccr-card-meta">
-                {usDate(e.date)}{e.statementKind ? ` · ${statementKindLabel(e.statementKind)}` : ''}{showHolder ? ` · ${e.holderName}` : ''}{e.category ? ` · ${categoryText(categories, e)}` : ''}
-                {line ? <><br />{line}</> : null}
-                {chips.length ? <><br /><span className="ccr-appr-line">{chips.map(chipText).join(' · ')}</span></> : null}
-                {askIsOpen(e) ? <><br /><span className="ccr-tag is-ask">Asked {firstName(e.ask!.toName)}</span></> : null}
-              </span>
-              <span style={{ justifySelf: 'end' }}><StatusChip status={e.status} /></span>
-            </button>
-          );
-        })}
-        <div className="ccr-shown" style={{ justifyContent: 'space-between' }}>{total}</div>
-      </div>
-    );
+    return <PhoneRows rows={rows} today={today} categories={categories} showHolder={showHolder} selection={selection} onOpen={onOpen} quick={quick} />;
   }
   return (
     <div className="ccr-table-wrap">
