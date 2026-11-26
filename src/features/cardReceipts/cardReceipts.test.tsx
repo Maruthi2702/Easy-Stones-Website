@@ -311,7 +311,7 @@ describe('the Credit Card Receipts page', () => {
   it('asks how to add a receipt: camera, photo, file or lost', async () => {
     await show(['use_card_receipts']);
     fireEvent.click(screen.getByLabelText('Add receipt'));
-    for (const name of ['Open Camera', 'Upload Photo', 'Upload File', 'Lost Receipt']) {
+    for (const name of ['Open Camera', 'Upload', 'Lost Receipt']) {
       expect(screen.getByRole('button', { name: new RegExp(name) })).toBeTruthy();
     }
     expect(document.querySelector('.fm-footer')).toBeNull();
@@ -319,7 +319,7 @@ describe('the Credit Card Receipts page', () => {
     fireEvent.click(screen.getByRole('button', { name: /Open Camera/ }));
     expect(text()).toContain('The camera isn’t available here');
     fireEvent.click(screen.getByLabelText('Close camera'));
-    expect(text()).toContain('Upload Photo');
+    expect(text()).toContain('A photo or PDF from your computer');
   });
 
   it('turns a wrong file away in the window, before anything uploads', async () => {
@@ -329,7 +329,7 @@ describe('the Credit Card Receipts page', () => {
     const doc = new File(['x'], 'Statement.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
     fireEvent.change(input, { target: { files: [doc] } });
     expect(text()).toContain('Statement.docx is a DOCX file');
-    expect(text()).toContain('Upload Photo');
+    expect(text()).toContain('A photo or PDF from your computer');
   });
 
   it('lets a cardholder add a receipt with the round +', async () => {

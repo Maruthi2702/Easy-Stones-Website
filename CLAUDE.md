@@ -1545,12 +1545,12 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   https://claude.ai/artifact/XZPwWL45sLa6o2EbQZPKDU): the round camera opens `AddReceiptChoice` (a size-S form, ✕, no
   footer — `FormModal`'s `hideFooter`): **Open Camera** (`CameraCapture`: `getUserMedia` back camera, corner guides, flash
   where the camera has one, Retake / Use photo; blocked or unavailable → it says so and offers the phone's own camera),
-  **Upload Photo**, **Upload File**, **Lost Receipt** (opens the form on the lost reason), and a drop box with a mouse. A
+  one **Upload** (a photo or PDF; Upload Photo and Upload File were merged 2026-11-26, owner: one picker already took both), **Lost Receipt** (opens the form on the lost reason), and a drop box with a mouse. A
   chosen file reaches the form as `initialFile`, uploads and is read as it opens. `receiptFileProblem`
   (`src/utils/receiptFile.ts`, tested) turns away anything but a photo / PDF ≤10 MB in the window and in the form. On a phone
   the choice is the form template's full-screen sheet, not the canvas's bottom sheet, now a **bottom drawer** (2026-11-25, owner's pick; claude.ai artifact **Add receipt on a phone**,
   https://claude.ai/artifact/1H3ocgSPHYgeCzKaNBycDK, "A as a drawer", dark and light): `BottomDrawer.tsx` over the dimmed page — a tap there, Esc, ✕ or dragging the
-  handle down closes it; one gold **Take a photo** card, **Library** and **Files** side by side, **Lost receipt** under "No receipt?" and **Add several** under
+  handle down closes it; one gold **Take a photo** card, one **Upload** row (a photo or PDF), **Lost receipt** under "No receipt?" and **Add several** under
   "For accounting" (`useIsPhone` branch in `AddReceiptChoice.tsx`; the form template's `--fm-*` tokens via `.fm-tokens`, so both themes follow; desktop keeps its
   list). It follows the phone rules below (pinned, page locked, scrim covers the screen). A **phone's camera fills the whole screen** (`object-fit: cover`) and the
   shot is cut to what showed (`src/utils/cameraCrop.ts`, tested); a desktop's stays letterboxed and whole. Not seen on a real iPhone. Not built: the canvas's step list while

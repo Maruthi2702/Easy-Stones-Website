@@ -498,7 +498,6 @@ body.light-theme-active .ccr-drawer-root { --dr-sheet: #f8fafc; --dr-card: #ffff
 .ccr-choice-hero-text { position: relative; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .ccr-choice-hero-text b { font-size: 24px; font-weight: 800; letter-spacing: -0.015em; line-height: 1.1; }
 .ccr-choice-hero-text small { font-size: 14px; font-weight: 500; line-height: 1.35; opacity: 0.84; }
-.ccr-choice-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .ccr-choice-tile, .ccr-choice-row { display: flex; align-items: center; gap: 12px; width: 100%; height: 64px; padding: 0 14px; border: 1px solid var(--dr-card-bd); border-radius: 18px; background: var(--dr-card); color: var(--fm-tx); font: inherit; text-align: left; cursor: pointer; }
 .ccr-choice-row { height: 60px; padding: 0 16px; gap: 14px; }
 .ccr-choice-tile:hover, .ccr-choice-row:hover { background: var(--fm-hover); }

@@ -15,7 +15,7 @@ describe('AddReceiptChoice on a phone (bottom drawer)', () => {
     phone(true);
     const p = props();
     render(<AddReceiptChoice {...p} />);
-    for (const name of [/Take a photo/, /Library/, /Files/, /Lost receipt/, /Add several/]) expect(screen.getByRole('button', { name })).toBeTruthy();
+    for (const name of [/Take a photo/, /Upload/, /Lost receipt/, /Add several/]) expect(screen.getByRole('button', { name })).toBeTruthy();
     expect(screen.getByText('No receipt?')).toBeTruthy();
     expect(screen.getByText('For accounting')).toBeTruthy();
     expect(screen.queryByText(/drop or paste/i)).toBeNull();
