@@ -8,6 +8,7 @@ import * as statements from '../db/cardStatements/index.ts';
 import { appDb, areaOn } from '../db/appDb.ts';
 import type { Db } from '../db/copy/plan.ts';
 import { newId } from '../db/ids.ts';
+import { notifyNewMissingReceipts } from '../services/statementNotice.ts';
 import { runWorkbookParse } from '../utils/runWorkbookParse.ts';
 import { CARD_RECEIPTS, isMonth, suggestCardLabel } from '../utils/cardReceipts.ts';
 import { missingFromFor, suggestHolder, issuerLabel, type Issuer } from '../utils/amexStatement.ts';
@@ -168,14 +169,17 @@ export default function createCardReceiptStatementsRouter({ authenticate }: { au
           }),
           peopleList()
         ]);
+        const { newlyMissing, ...shown } = result;
         res.json({
-          ...result,
+          ...shown,
           period: read.period,
           missingFrom: missingFromFor(issuer),
           unknownCards: result.unknownCards.map((c) => ({ ...c, suggestedUserId: suggestHolder(people, c.cardMember)?.id ?? '' })),
           people,
           preview
         });
+        // After the answer, and only with the automatic-reminders switch on: tell each holder their new Missing receipts.
+        if (!preview && newlyMissing.length) void notifyNewMissingReceipts(newlyMissing);
       } catch (err) {
         if (cardError(res, err)) return;
         // A preview that met a real upload mid-write (lock_timeout): nothing is wrong, look again in a moment.

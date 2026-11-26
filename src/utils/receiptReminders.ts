@@ -355,3 +355,28 @@ export function reminderPushWords({ readerId, items, senderName = '' }: { reader
     : `${plural(list.length, 'card receipt')} need attention${from}`;
   return { title, body, path: RECEIPTS_PATH };
 }
+
+/**
+ * The notice a cardholder gets when a bank statement upload has just made Missing receipt rows for them (owner, 2026-11-26):
+ * one email and one push listing the charges. Sent only while the automatic-reminders switch is on.
+ */
+export type NoticeCharge = { date: string; merchant: string; cents: number };
+export function statementNoticeWords(charges: readonly NoticeCharge[]): { email: EmailWords; push: { title: string; body: string; path: string } } {
+  const n = charges.length;
+  const first = charges[0]!;
+  const single = `${clip(first.merchant, 60) || 'A charge'} ${formatMoney(Number(first.cents) || 0)}`;
+  const rows = charges.map((c) => ({ title: clip(c.merchant, 60) || 'A charge', sub: [c.date ? usDate(String(c.date)) : '', 'Upload the receipt'].filter(Boolean).join(' · '), amount: formatMoney(Number(c.cents) || 0) }));
+  const email: EmailWords = {
+    subject: n === 1 ? `Receipt needed: ${single}` : `Receipts needed: ${plural(n, 'card charge')}`,
+    headline: n === 1 ? 'A card charge needs your receipt' : `${plural(n, 'card charge')} need your receipts`,
+    intro: `${n === 1 ? 'This charge' : 'These charges'} on your company card showed up on the latest statement and ${n === 1 ? 'has' : 'have'} no receipt yet. Upload ${n === 1 ? 'it' : 'them'} in Credit Card Receipts.`,
+    lines: charges.map((c) => [c.date ? usDate(String(c.date)) : '', clip(c.merchant, 60) || 'A charge', formatMoney(Number(c.cents) || 0)].filter(Boolean).join(' · ')),
+    rows, total: n > 1 ? formatMoney(charges.reduce((sum, c) => sum + (Number(c.cents) || 0), 0)) : '', message: '', button: 'Open Credit Card Receipts'
+  };
+  const push = {
+    title: 'Receipt needed',
+    body: n === 1 ? clip(`${single}${first.date ? ` on ${usDate(String(first.date))}` : ''} needs a receipt`, 220) : `${plural(n, 'card charge')} need a receipt`,
+    path: RECEIPTS_PATH
+  };
+  return { email, push };
+}

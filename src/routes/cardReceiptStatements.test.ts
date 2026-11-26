@@ -13,7 +13,11 @@ import * as schema from '../db/schema/index.ts';
 import { migrateDb } from '../db/client.ts';
 import type { Db } from '../db/copy/plan.ts';
 
-const state = vi.hoisted(() => ({ db: null as unknown }));
+const state = vi.hoisted(() => ({ db: null as unknown, notified: [] as unknown[][] }));
+// The holders' notice has its own tests; here only what the upload hands it matters.
+vi.mock('../services/statementNotice.ts', () => ({
+  notifyNewMissingReceipts: async (fresh: unknown[]) => { state.notified.push(fresh); return { people: 0, emails: 0, pushes: 0 }; }
+}));
 vi.mock('../db/appDb.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../db/appDb.ts')>()),
   appDb: async () => state.db,
@@ -127,6 +131,10 @@ describe('the Amex check', () => {
     const res = await post('import');
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ added: 6, check: { linked: 1, created: 1, retired: 0 } });
+    // The new Missing row's holder is told (the answer never carries who; a preview tells nobody).
+    expect(res.body.newlyMissing).toBeUndefined();
+    expect(state.notified).toHaveLength(1);
+    expect(state.notified[0]).toEqual([expect.objectContaining({ userId: MARU, cents: expect.any(Number) })]);
     const rows = await db.select().from(cardStatementLines);
     const by = Object.fromEntries(rows.map((r) => [r.reference, r]));
     expect(by['ref-matched']).toMatchObject({ expenseId: UPLOADED, cardId: MARU_CARD, kind: 'charge' });

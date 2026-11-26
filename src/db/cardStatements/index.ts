@@ -293,6 +293,8 @@ async function summaryOf(tx: Conn, references: string[], missingFrom: string | u
     check: did
   };
 }
+/** A Missing receipt row an upload just made: who owes it, and the charge. */
+export type NewMissing = { userId: string; date: string; merchant: string; cents: number };
 export type StatementSummary = Awaited<ReturnType<typeof summaryOf>>;
 
 /**
@@ -302,7 +304,7 @@ export type StatementSummary = Awaited<ReturnType<typeof summaryOf>>;
 export async function importStatement(input: {
   lines: AmexLine[]; fileName: string; period: { from: string; to: string } | null; by: Actor; issuer?: Issuer;
   missingFrom?: string; preview?: boolean; beforeCheck?: (tx: Db) => Promise<void>;
-}, db?: Db): Promise<StatementSummary & { importId: string; added: number; known: number }> {
+}, db?: Db): Promise<StatementSummary & { importId: string; added: number; known: number; newlyMissing: NewMissing[] }> {
   const d = db ?? await appDb();
   // Each bank has its own start day (missingFromFor); `input.missingFrom` overrides both (tests).
   const missingFrom = input.missingFrom;
@@ -356,7 +358,11 @@ export async function importStatement(input: {
       // Only the uploaded bank is checked: an Encore file never reads, matches or makes anything at Amex.
       const did = await check(tx, input.by, missingFrom, issuer);
       const summary = await summaryOf(tx, references, missingFrom, did);
-      const result = { ...summary, importId, added: references.length - known.size, known: known.size };
+      // The Missing receipt rows this upload's check just made (a preview made none that stay), for the "needs a receipt" notice.
+      const newlyMissing: NewMissing[] = input.preview ? [] : (await tx.select({ userId: cardExpenses.userId, day: cardExpenses.day, merchant: cardExpenses.merchant, cents: cardExpenses.cents })
+        .from(cardExpenses).where(and(eq(cardExpenses.status, 'missing'), isNull(cardExpenses.voidedAt), gte(cardExpenses.createdAt, now), sql`${cardExpenses.userId} is not null`)))
+        .map(r => ({ userId: String(r.userId), date: r.day, merchant: r.merchant, cents: r.cents }));
+      const result = { ...summary, importId, added: references.length - known.size, known: known.size, newlyMissing };
       if (input.preview) throw new Preview(result);
       await tx.insert(imports).values({
         id: importId, issuer, fileName: input.fileName.slice(0, 200), periodFrom: input.period?.from ?? null, periodTo: input.period?.to ?? null,
