@@ -297,7 +297,7 @@ export default function ExpenseDrawer({
           <FormField name="comment" id="ccr-comment" label="Comment" required={needsComment}>
             <textarea id="ccr-comment" className="fm-input fm-textarea" rows={2} maxLength={500} autoCapitalize="sentences"
               value={comment} onChange={(ev) => setComment(ev.target.value)}
-              placeholder={needsComment ? 'Why you accept it without a receipt' : 'Needed to send it back'} />
+              placeholder={needsComment ? 'Why you accept it without a receipt' : 'Optional note with your approval. Required to send back.'} />
           </FormField>
         </FormSection>
       ) : null}
