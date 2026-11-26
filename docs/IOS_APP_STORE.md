@@ -18,6 +18,10 @@ current rules when you reach it. **Owner steps are marked ▶.**
    pages (a reviewer sees whatever real data those pages hold). Put its username in the review notes below and its password in
    App Store Connect only, never in the repo. **No supplier demo login:** the Purchasing / supplier module is not part of this
    launch (owner, 2026-11-26), so the listing and notes don't mention suppliers.
+   **Demo data for it:** run `node scripts/seed-app-review-demo.ts` in the Render shell (dry run), then `--apply`: a hidden Demo
+   location, 8 invented customers at Seattle landmarks and `app.review` pointed at Demo only (other staff never see the location;
+   see CLAUDE.md "A hidden location"). In the app, tick **Unassigned** in the Route Planner's Filters to show the pins. After Apple
+   approves the app, `--remove --apply` takes it all out.
 5. ✔ **Icon — keep as is** (owner, 2026-11-26): `mobile/assets/icon.png` is 1024 × 1024 with no transparency, which meets Apple's rules; its edges are soft because it was enlarged from the 156 px mark. Replace it with a vector / larger logo later, in a new build.
 6. ▶ **Screenshots** (owner, 2026-11-26: **keep iPad support**, so both sets are needed and Apple reviews on an iPad too) —
    6.9-inch iPhone (1320 × 2868 or 1290 × 2796) and 13-inch iPad (2064 × 2752 or 2048 × 2732; the Simulator's "iPad Pro 13-inch"

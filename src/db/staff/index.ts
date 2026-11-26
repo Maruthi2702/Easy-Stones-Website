@@ -4,6 +4,7 @@
  * (staff.parity.test.ts). Last area to move (DB_MOVE_CHECKLIST.md §5): nothing is switched
  * on until its cutover, and the Mongo → Postgres reference sync (src/db/reference/) stops then.
  */
+import { withoutHiddenLocations } from '../../utils/hiddenLocations.ts';
 import { appDb, areaOn } from '../appDb.ts';
 import { newId } from '../ids.ts';
 import * as mongo from './mongo.ts';
@@ -30,11 +31,15 @@ export async function rolesList(): Promise<Loose[]> {
 // ── Locations ────────────────────────────────────────────────────────────────
 export type { Geocoder, SaveResult } from './locations.mongo.ts';
 
-export async function locationsList(): Promise<Loose[]> {
-  return onPostgres() ? locPg.locationsList(await appDb()) : locMongo.locationsList();
+/** Every location, except the hidden Demo one (src/utils/hiddenLocations.ts) unless `includeHidden` says the viewer may see it. */
+export async function locationsList(o: { includeHidden?: boolean } = {}): Promise<Loose[]> {
+  const all = onPostgres() ? await locPg.locationsList(await appDb()) : await locMongo.locationsList();
+  return o.includeHidden ? all : withoutHiddenLocations(all);
 }
-export async function locationNames(): Promise<string[]> {
-  return onPostgres() ? locPg.locationNames(await appDb()) : locMongo.locationNames();
+/** Every location's name, without the hidden Demo one — so it is never a branch (a login assigned every real branch stays company-wide). */
+export async function locationNames(o: { includeHidden?: boolean } = {}): Promise<string[]> {
+  const all = onPostgres() ? await locPg.locationNames(await appDb()) : await locMongo.locationNames();
+  return o.includeHidden ? all : withoutHiddenLocations(all);
 }
 /** `{ _id, name, shortCode }` of every location (the Add / Edit form's duplicate check). */
 export async function locationBriefs(): Promise<Loose[]> {

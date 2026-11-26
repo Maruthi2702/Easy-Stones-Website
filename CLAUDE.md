@@ -364,6 +364,15 @@ Its list floats inside its field (never portaled), and it scrolls only
 itself to keep the highlighted row in view — `scrollIntoView` scrolls `body`
 too (it's a scroll box, index.css), which jumped the page when it opened.
 
+**A hidden location: "Demo" (2026-11-26).** The App Store review login `app.review` works in a location called Demo with 8 invented
+customers so Apple's reviewer never sees a real one (`scripts/seed-app-review-demo.ts`: dry run, `--apply`, `--remove`). Nobody
+else is offered it: `staffData.locationsList()` / `locationNames()` leave out `HIDDEN_LOCATIONS` (`src/utils/hiddenLocations.ts`,
+tested) unless `includeHidden`, and `GET /api/admin/locations` sends it only to a login assigned to it by name. So it is never a
+branch (a login assigned every real branch is still company-wide in `fuelman/access.ts`), is on no Daily Report or delivery board,
+and isn't in any dropdown. `locationBriefs` / `locationByName` still see it (duplicate checks, customer saves). **Its 8 customers
+are ordinary customers** — logins that see every customer show them as "Demo – …" while they exist, so seed close to submitting and
+`--remove` after approval. A new location read that feeds a dropdown or per-branch screen goes through those two functions.
+
 ## Dates: one calendar, one folder (2026-10-17)
 
 Every date, month and year field is `src/components/shared/calendar/` (the

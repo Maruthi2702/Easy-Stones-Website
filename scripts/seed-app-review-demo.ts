@@ -9,14 +9,21 @@
  *
  *   node scripts/seed-app-review-demo.ts            # dry run: validates and lists what would be written
  *   node scripts/seed-app-review-demo.ts --apply    # write it
+ *   node scripts/seed-app-review-demo.ts --remove            # dry run of taking it all out again
+ *   node scripts/seed-app-review-demo.ts --remove --apply    # take it out (after Apple approves the app)
+ *
+ * The Demo location is hidden from every location list except for a login assigned to it
+ * (`src/utils/hiddenLocations.ts`), but its 8 customers are ordinary customers: logins that see every customer (admin,
+ * director) will see "Demo – …" in the Customer List and dropdowns while it is in place. Seed it close to submitting and
+ * `--remove` it once the app is approved.
  *
  * Live Postgres is only reachable from Render, so run it in the Render shell. Reads and writes go through the same data
  * layers and rules the app's forms use (`parseable` location values, `newCustomerFields`, `createCustomer`,
  * `createLocation`). Map pins come from the same Google geocoder as Add customer (needs GOOGLE_GEOCODING_API_KEY; a
  * customer whose address can't be placed is still saved, without a pin, and reported).
  *
- * To undo: delete the 8 "Demo – …" customers in Customers and the Demo location in Users & Roles → Locations, and give
- * `app.review` its location back.
+ * `--remove` saves each customer whole first (the Customer List's bulk delete: `customerdeletebackups`, restorable with its
+ * Undo), deletes them and the Demo location, and leaves `app.review` for you to point at a real branch or switch off.
  */
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
@@ -31,6 +38,7 @@ import { geocodeAddress } from '../src/utils/geocode.ts';
 
 dotenv.config();
 const apply = process.argv.includes('--apply');
+const remove = process.argv.includes('--remove');
 
 const LOGIN = 'app.review';
 const LOCATION_NAME = 'Demo';
@@ -52,9 +60,30 @@ const CUSTOMERS: { company: string; contactName: string; customerType: string; l
   { company: 'Demo – Capitol Hill Tile & Stone', contactName: 'Jamie Demo', customerType: 'Dealer', level: 'Level - 3', street: '1400 E Galer St', zipCode: '98112' }
 ];
 
+const removeDemo = async () => {
+  const demo = (await customerData.dropdownCustomers()).filter((c: Loose) => c.location === LOCATION_NAME && CUSTOMERS.some((d) => d.company.toLowerCase() === String(c.company ?? '').trim().toLowerCase()));
+  const location = await staffData.locationByName(LOCATION_NAME);
+  console.log(`${demo.length} demo customers and ${location ? 'the Demo location' : 'no Demo location'} found.`);
+  for (const c of demo) console.log(`  ${apply ? 'deleting' : 'would delete'}: ${c.company}`);
+  if (!apply) { console.log('\nDry run — nothing deleted. Add --apply to delete them.'); return; }
+  if (demo.length) {
+    const result = await customerData.bulkDeleteCustomers(demo.map((c: Loose) => String(c._id)), 'seed-app-review-demo');
+    console.log(`Deleted ${demo.length} customers (backup:`, JSON.stringify(result), ').');
+  }
+  if (location) {
+    const ok = await staffData.deleteLocation(String(location._id));
+    console.log(ok ? 'Deleted the Demo location.' : 'The Demo location was not deleted — something still points at it (a user assigned to it?). Move app.review off Demo first.');
+  }
+};
+
 const main = async () => {
   const needsMongo = areaOn('customers') !== 'postgres' || areaOn('staff') !== 'postgres';
   if (needsMongo) await mongoose.connect(process.env.MONGO_URI!);
+  if (remove) {
+    await removeDemo();
+    if (needsMongo) await mongoose.disconnect();
+    process.exit(0);
+  }
 
   // 1. The Demo location.
   const locations = await staffData.locationBriefs();

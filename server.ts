@@ -89,6 +89,7 @@ import { EASY_STONES_COLORS } from './src/data/easyStonesColors.ts';
 // (here and in ensure-indexes.ts) that had already drifted apart.
 import { INDEXED_MODELS } from './src/config/indexedModels.ts';
 import { parseLocationBody, publicLocationFields } from './src/utils/locationForm.ts';
+import { canSeeHiddenLocations } from './src/utils/hiddenLocations.ts';
 import { prettifyUsername } from './src/utils/textUtils.ts';
 import { sendContactFormEmail } from './src/services/emailService.ts';
 import { alertGeocodeFailure } from './src/services/geocodeAlert.ts';
@@ -2218,7 +2219,8 @@ app.delete('/api/admin/roles/:id', verifyAnyAuth, requireAction(ROLES.DELETE), v
 // what the filters need (publicLocationFields).
 app.get('/api/admin/locations', verifyAnyAuth, async (req: Request, res: Response) => {
   try {
-    const locations = await staffData.locationsList();
+    // The hidden Demo location (App Store review) goes only to a login assigned to it.
+    const locations = await staffData.locationsList({ includeHidden: canSeeHiddenLocations(req.user) });
     const full = canOpenArea(req.user, 'locations');
     const staff = req.user?.type !== 'customer';
     res.json(full ? locations : locations.map((l) => publicLocationFields(l, { staff })));
