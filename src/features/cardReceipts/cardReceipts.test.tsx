@@ -579,23 +579,27 @@ describe('approvals, questions and reminders (2026-11-23)', () => {
     expect(text()).not.toContain('selected');
   });
 
-  it('tells a cardholder about their missing receipts', async () => {
+  it('does not repeat a missing receipt that is already on the month’s list', async () => {
     const before = EXPENSES.length;
     EXPENSES.push(exp('m1', { merchant: 'SHELL', status: 'missing', receiptUrl: '', category: '' }));
     try {
       fake.waiting = [];
+      fake.todo = [EXPENSES[EXPENSES.length - 1]];
       await show(['use_card_receipts']);
-      expect(text()).toContain('You have 1 missing receipt — upload it.');
+      expect(document.querySelector('.ccr-banner')).toBeNull();
+      expect(document.querySelector('.ccr-todos')).toBeNull();
+      expect(text()).toContain('SHELL');
     } finally {
       EXPENSES.length = before;
     }
   });
 
-  it('lists To do from every month on a desktop too, so last month’s missing receipt isn’t hidden (review B1)', async () => {
+  it('lists To do from an earlier month on a desktop too, so last month’s missing receipt isn’t hidden (review B1)', async () => {
     fake.waiting = [];
     fake.todo = [exp('sep1', { merchant: 'CHEVRON 0207730', date: '2026-09-30', status: 'missing', receiptUrl: '', category: '' })];
     await show(['use_card_receipts']);
-    expect(text()).toContain('You have 1 missing receipt (some from another month) — upload it.');
+    expect(document.querySelector('.ccr-banner')).toBeNull();
+    expect(document.querySelector('.ccr-todos')?.textContent).toContain('From earlier months · 1');
     expect(document.querySelector('.ccr-todos')?.textContent).toContain('CHEVRON 0207730');
     expect(document.querySelector('.ccr-todos')?.textContent).toContain('09-30-2026');
     // Opening it works although September isn't the month on screen.
@@ -805,11 +809,11 @@ describe('on a phone (owner’s design, 2026-11-26)', () => {
     expect(document.querySelector('.ccr-pr .ccr-av')).toBeNull();
   });
 
-  it('shows Needs you as one card with Upload receipt, in place of the banner and the To do grid', async () => {
+  it('shows an earlier month’s missing receipt as one card with Upload receipt, in place of the banner and the To do grid', async () => {
     fake.waiting = [];
     fake.todo = [exp('m9', { merchant: 'CHEVRON', cents: 7103, status: 'missing', receiptUrl: '', category: '', date: '2026-10-12' })];
     await show(['use_card_receipts']);
-    expect(screen.getByRole('region', { name: 'Needs you' }).textContent).toContain('Needs you · 1');
+    expect(screen.getByRole('region', { name: 'From earlier months' }).textContent).toContain('From earlier months · 1');
     expect(document.querySelector('.ccr-banner')).toBeNull();
     expect(document.querySelector('.ccr-todos')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Upload receipt' }));
@@ -848,7 +852,7 @@ describe('on a phone (owner’s design, 2026-11-26)', () => {
     expect(sent?.body.comment).toBe('Which customer was this for?');
   });
 
-  it('leaves the desktop alone: the banner and To do grid are still there off a phone', async () => {
+  it('leaves the desktop alone off a phone: the toolbar, not the phone header', async () => {
     phone(false);
     fake.waiting = [];
     await show(['use_card_receipts']);

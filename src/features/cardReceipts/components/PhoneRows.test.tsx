@@ -143,7 +143,7 @@ describe('NeedsYou', () => {
   it('gives a missing receipt Upload receipt and a draft Finish it, and opens the receipt either way', () => {
     const onOpen = vi.fn();
     render(<NeedsYou todo={[missing, draft]} categories={categories} expanded={false} onToggle={() => {}} onOpen={onOpen} />);
-    expect(screen.getByText('Needs you · 2')).toBeTruthy();
+    expect(screen.getByText('From earlier months · 2')).toBeTruthy();
     expect(screen.getByText('$94.43')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Upload receipt' }));
     fireEvent.click(screen.getByRole('button', { name: 'Finish it' }));

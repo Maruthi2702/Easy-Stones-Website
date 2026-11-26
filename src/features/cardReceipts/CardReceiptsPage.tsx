@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { AlertTriangle, Ban, Camera, ChevronLeft, ChevronRight, Clock, CreditCard, Download, FileText, Info, ReceiptText, Trash2 } from 'lucide-react';
+import { Ban, Camera, ChevronLeft, ChevronRight, Clock, CreditCard, Download, FileText, Info, ReceiptText, Trash2 } from 'lucide-react';
 import useIsPhone from '../../components/shared/form/useIsPhone';
 import DashboardSearch from '../../components/shared/DashboardSearch';
 import LocationFilter from '../../components/shared/LocationFilter';
@@ -168,9 +168,11 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   const opened = openId ? source.find((e) => e.id === openId) || data.expenses.find((e) => e.id === openId) || data.waiting.find((e) => e.id === openId)
     || data.todo.find((e) => e.id === openId) || null : null;
   const index = opened ? rows.findIndex((e) => e.id === opened.id) : -1;
-  // To do (review B1): every month's, from the server — a charge from last month found by this month's statement shows too.
-  const todo = data.todo;
-  const missingMine = todo.filter((e) => e.status === 'missing');
+  // To do (review B1): the cardholder's unfinished receipts from every month, from the server — a charge from last month found
+  // by this month's statement has no row on this month's list. Anything already on the list shows there with its own status
+  // (Missing receipt, Draft, Sent back), so only the ones that aren't get this extra list (owner, 2026-11-26: no second copy).
+  const onList = new Set(data.expenses.map((e) => e.id));
+  const todo = data.loading ? [] : data.todo.filter((e) => !onList.has(e.id));
   const [allTodo, setAllTodo] = useState(false);
   const todoShown = allTodo ? todo : todo.slice(0, TODO_SHOWN);
 
@@ -392,22 +394,9 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
               <NeedsYou todo={todo} categories={categories} expanded={allTodo} onToggle={() => setAllTodo((a) => !a)} onOpen={(e) => setOpenId(e.id)} />
             ) : null}
 
-            {!isPhone && tab === 'expenses' && missingMine.length ? (
-              <div className="ccr-note is-warn ccr-banner" role="status">
-                <AlertTriangle size={16} aria-hidden="true" />
-                <span>
-                  You have {missingMine.length} missing {missingMine.length === 1 ? 'receipt' : 'receipts'}
-                  {missingMine.some((e) => monthOf(e.date) !== data.month) ? ' (some from another month)' : ''} — upload {missingMine.length === 1 ? 'it' : 'them'}.
-                </span>
-                <button type="button" className="ccr-btn ccr-banner-btn" onClick={() => setOpenId(missingMine[missingMine.length - 1].id)}>
-                  Upload
-                </button>
-              </div>
-            ) : null}
-
             {!isPhone && tab === 'expenses' && todo.length ? (
-              <section className="ccr-todos" aria-label="To do">
-                <h2 className="ccr-todo-h">To do · {todo.length}</h2>
+              <section className="ccr-todos" aria-label="From earlier months">
+                <h2 className="ccr-todo-h">From earlier months · {todo.length}</h2>
                 <div className="ccr-todo-grid">
                   {todoShown.map((e) => (
                     <button key={e.id} type="button" className={`ccr-todo${e.status === 'missing' ? ' is-miss' : ''}`} onClick={() => setOpenId(e.id)}>
