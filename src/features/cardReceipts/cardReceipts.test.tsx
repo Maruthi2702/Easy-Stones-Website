@@ -486,6 +486,15 @@ describe('approvals, questions and reminders (2026-11-23)', () => {
     expect(plain).not.toContain('Delete receipt…');
   });
 
+  it('offers Edit receipt in ⋯ beside Approve to someone with Edit any receipt, and to nobody else (2026-11-26)', async () => {
+    await openWaiting(['use_card_receipts', 'approve_card_receipts', 'edit_any_card_receipt'], 'CHEVRON');
+    expect(screen.getByRole('button', { name: 'Approve receipt' })).toBeTruthy();
+    expect(await menuItems()).toContain('Edit receipt');
+    cleanup();
+    await openWaiting(['use_card_receipts', 'approve_card_receipts'], 'CHEVRON');
+    expect(await menuItems()).not.toContain('Edit receipt');
+  });
+
   it('puts Void and Delete in each row’s ⋯ and, for ticked receipts, in the header More menu', async () => {
     await show(['view_all_card_receipts', 'void_any_card_receipt', 'delete_card_receipts']);
     const rowMenus = screen.getAllByRole('button', { name: /^Actions for / });

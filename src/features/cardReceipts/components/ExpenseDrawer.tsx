@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Ban, Bell, CornerUpLeft, FileText, HelpCircle, Maximize2, MessageSquareOff, MoreHorizontal, RotateCcw, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, Ban, Bell, CornerUpLeft, FileText, HelpCircle, Maximize2, MessageSquareOff, MoreHorizontal, Pencil, RotateCcw, Trash2, Upload } from 'lucide-react';
 import FormModal from '../../../components/shared/form/FormModal';
 import { FormSection, FormField } from '../../../components/shared/form/FormControls';
 import { billMismatch, billMismatchLine, formatMoney, isBigReceipt, usDate, fieldsOf } from '../../../utils/cardReceipts';
@@ -148,7 +148,15 @@ export default function ExpenseDrawer({
       ? { label: 'Approve receipt', saving: 'Approving…', disabled: Boolean(problem), kind: 'approve' as const, run: () => run('approve', () => onApprove(comment.trim())) }
       : canEdit ? { label: editLabel, saving: '', disabled: false, kind: '' as const, run: onEdit } : null;
 
+  // Approve / Answer is the main button for an approver, so Edit has no button of its own: it goes in ⋯ (2026-11-26, Admin and
+  // Accounting fix a category or a missing fee before or instead of approving). Otherwise Edit is already the main button.
+  const editInMenu = canEdit && !e.voided && (act.answer || act.approve);
   const items = [
+    editInMenu ? (
+      <button key="edit" type="button" role="menuitem" className="ccr-more-item" disabled={Boolean(busy)} onClick={onEdit}>
+        <Pencil size={18} aria-hidden="true" />{editLabel}
+      </button>
+    ) : null,
     act.sendBack ? (
       <button key="back" type="button" role="menuitem" className="ccr-more-item" disabled={Boolean(busy) || !comment.trim()}
         title={comment.trim() ? undefined : 'Write what needs fixing in the comment first'} onClick={() => run('back', () => onSendBack(comment.trim()))}>

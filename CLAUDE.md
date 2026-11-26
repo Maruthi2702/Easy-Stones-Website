@@ -1604,6 +1604,7 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   (`deleteReasonProblem`): the whole record is saved first to `card_expense_deletions` (Postgres, migration `0034`; MongoDB's
   `cardexpensedeletions`) with who and why, then removed with its history; a bank-statement charge's row can't be deleted. The
   drawer's ⋯ shows Void receipt / Delete receipt… by these switches. **Run `npm run pg:migrate -- --apply` on Render for `0034`.**
+  **Edit receipt is in the opened receipt's ⋯ too** (2026-11-26) when Approve / Answer is the main button, so an approver with Edit any can fix a category or fee before approving; with nothing to approve Edit stays the main button.
   Void and Delete are also in each desktop row's ⋯ (a last column in `ExpenseList`, the shared `RowMenu`) and, for **ticked**
   receipts, in the header ⋯ under Export… ("Void 3 selected…" / "Delete 3 selected…", `BulkReasonForm`: one reason, each goes through
   the single route, a refused one is listed and the rest still go). Phone cards have no row ⋯ — a tap opens the receipt, whose ⋯ has them.
