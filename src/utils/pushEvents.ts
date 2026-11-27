@@ -45,6 +45,8 @@ export function receiptAskedMessage(expense: Loose, ask: Loose): Message {
 /** The person asked answered (and approved): to whoever asked. */
 export function receiptAnsweredMessage(expense: Loose, ask: Loose): Message {
   const who = firstName(ask.toName) || 'They';
+  // Answered without approving (Return to Accounting): it is back in the asker's queue.
+  if (ask.declined) return { title: 'Receipt returned to you', body: `${who} didn’t approve ${receiptPhrase(expense)}: ${clip(ask.answer, 140)}`, path: '/sales?tab=card_receipts' };
   return { title: 'Question answered', body: `${who} answered about ${receiptPhrase(expense)}: ${clip(ask.answer, 140)}`, path: '/sales?tab=card_receipts' };
 }
 

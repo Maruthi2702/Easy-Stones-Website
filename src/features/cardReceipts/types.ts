@@ -15,7 +15,9 @@ export type Person = { id: string; name: string; role: string; location: string;
 export type ApproverAs = 'accounting' | 'admin' | 'manager';
 export type Decision = { by: string; byName: string; at: string; comment: string; as?: ApproverAs | null };
 /** A question Accounting / an Admin sent about the receipt; open while `answeredAt` is empty. */
-export type Ask = { to: string; toName: string; by: string; byName: string; at: string; question: string; answer: string; answeredAt: string | null };
+export type Ask = { to: string; toName: string; by: string; byName: string; at: string; question: string; answer: string; answeredAt: string | null;
+  /** Answered without approving (Return to Accounting): it waits for Accounting again. */
+  declined?: boolean };
 /** "Accounting ✓ Maria" · "Manager or Admin — waiting" (approvalChips). */
 export type ApprovalChip = { key: 'accounting' | 'second'; label: string; by: string; done: boolean };
 /** Why the receipt is in the viewer's Waiting for me. */

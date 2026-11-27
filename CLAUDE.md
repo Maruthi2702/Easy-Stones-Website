@@ -1450,8 +1450,15 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   the server's per-viewer `actions` / `chips` / `waitingReason`, not the rules. **Ask** (Accounting or an Admin; the target
   must be an active person whose role holds Approve — branch manager / Admin for staff receipts, an Admin otherwise): they
   comment, which **approves** (fills the second approval when theirs); asking takes back an Accounting approval, so
-  Accounting gives the final one; while a question is open nobody else approves, and it can be withdrawn. **Send back**
-  (comment) clears both approvals and the question; **Reopen** (reason) puts an approved receipt back to Waiting; **a holder
+  Accounting gives the final one; while a question is open nobody else approves, and it can be withdrawn. **The person
+  asked may instead Return to Accounting** (2026-11-26, owner's ask; `POST /expenses/:id/answer` with `decision: 'return'`,
+  a comment required): no approval is given, the ask is kept answered with `declined: true`, the receipt waits for Accounting
+  again, who may approve, ask again or send back; the asker gets a push + email ("Receipt returned to you"). Open asks show
+  how long they've waited (`askAgeText` in `receiptApproval.ts`: "3 days", nothing under a day) on the list tag, phone row,
+  status band and the opened receipt. **Send back** takes a **quick reason** (`SEND_BACK_REASONS`: Wrong category, Missing
+  note, Missing customer, Unreadable photo, Wrong card, Other) and/or a comment — a pick alone is enough, Other or no pick
+  needs the comment (`sendBackText`); it is stored as the send-back's comment ("Wrong category: …", no new column), and the
+  drawer's Send back now opens the same `SendBackForm` as a phone row. Send back clears both approvals and the question; **Reopen** (reason) puts an approved receipt back to Waiting; **a holder
   can't edit once anyone has approved it** (2026-11-26), so only Send back or Reopen clears approvals. An **Admin's charge with no upload** is Waiting, never Missing (Statements shows "Waiting for
   Accounting"); Accounting fills category / type / customer / note (`PUT /expenses/:id/details`) and approves it with no
   receipt. Accounting, Manager and Director roles are given Approve once (`NEW_PERMISSION_GRANTS` in server.ts), which

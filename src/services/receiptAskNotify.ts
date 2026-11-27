@@ -58,14 +58,17 @@ const linkOf = (base = '') => (base ? `${base.replace(/\/+$/, '')}/sales?tab=car
 export function notifyAsked(expense: Loose, ask: Loose, deps: AskNotifyDeps = {}): Promise<void> {
   const message = receiptAskedMessage(expense, ask);
   const subject = `Question about ${receiptPhrase(expense)}`;
-  const html = emailHtml('A question about a receipt', `${ask.byName || 'Accounting'} asked about ${receiptPhrase(expense)}. Answering approves it.`, String(ask.question ?? ''), linkOf(deps.base));
+  const html = emailHtml('A question about a receipt', `${ask.byName || 'Accounting'} asked about ${receiptPhrase(expense)}. Answering approves it; or return it to Accounting without approving.`, String(ask.question ?? ''), linkOf(deps.base));
   return tell('receipt asked', String(ask.to), message, subject, html, deps).catch(() => undefined);
 }
 
 /** `ask.to` answered: whoever asked is told. */
 export function notifyAnswered(expense: Loose, ask: Loose, deps: AskNotifyDeps = {}): Promise<void> {
   const message = receiptAnsweredMessage(expense, ask);
-  const subject = `Answered: ${receiptPhrase(expense)}`;
-  const html = emailHtml('Your question was answered', `${ask.toName || 'They'} answered your question about ${receiptPhrase(expense)}: “${String(ask.question ?? '')}”`, String(ask.answer ?? ''), linkOf(deps.base));
+  const declined = ask.declined === true;
+  const subject = `${declined ? 'Returned, not approved' : 'Answered'}: ${receiptPhrase(expense)}`;
+  const html = declined
+    ? emailHtml('A receipt came back to you', `${ask.toName || 'They'} did not approve ${receiptPhrase(expense)}. It is waiting for you again. Your question: “${String(ask.question ?? '')}”`, String(ask.answer ?? ''), linkOf(deps.base))
+    : emailHtml('Your question was answered', `${ask.toName || 'They'} answered your question about ${receiptPhrase(expense)}: “${String(ask.question ?? '')}”`, String(ask.answer ?? ''), linkOf(deps.base));
   return tell('receipt answered', String(ask.by), message, subject, html, deps).catch(() => undefined);
 }

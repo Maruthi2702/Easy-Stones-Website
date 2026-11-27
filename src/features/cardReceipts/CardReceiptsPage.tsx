@@ -489,7 +489,8 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
             openNext(opened.id);
           }}
           onAnswer={async (text) => { await data.answer(opened, text); say('Answered and approved'); openNext(opened.id); }}
-          onSendBack={async (comment) => { await data.sendBack(opened, comment); say('Sent back'); setOpenId(null); }}
+          onSendBack={() => setOpen({ kind: 'sendback', expense: opened })}
+          onReturn={async (text) => { await data.returnToAccounting(opened, text); say('Returned to Accounting'); openNext(opened.id); }}
           onAsk={() => setOpen({ kind: 'ask', expense: opened })}
           onWithdrawAsk={async () => { await data.withdrawAsk(opened); say('Question withdrawn'); }}
           onReopen={() => setOpen({ kind: 'reopen', expense: opened })}
@@ -598,7 +599,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
 
       {open?.kind === 'sendback' ? (
         <SendBackForm expense={open.expense} onClose={() => setOpen(null)}
-          onSendBack={async (comment) => { await data.sendBack(open.expense, comment); setOpen(null); say('Sent back'); }} />
+          onSendBack={async (comment, reason) => { await data.sendBack(open.expense, comment, reason); setOpen(null); setOpenId(null); say('Sent back'); }} />
       ) : null}
 
       {open?.kind === 'reopen' ? (

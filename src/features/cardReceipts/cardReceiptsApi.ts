@@ -67,7 +67,8 @@ export const matchReceiptToCharge = (missingId: string, receiptId: string) =>
   call<{ expense: Expense; replacedMissing: string }>(`/expenses/${missingId}/use-receipt`, { method: 'POST', body: { receiptId } });
 /** `seen`: the updatedAt the approver was looking at; the server refuses the decision if the receipt changed since. */
 export const approveExpense = (id: string, comment: string, seen?: string) => write(`/expenses/${id}/approve`, { comment }, seen);
-export const sendBackExpense = (id: string, comment: string, seen?: string) => write(`/expenses/${id}/send-back`, { comment }, seen);
+/** `reason` is a quick pick (SEND_BACK_REASONS); the comment is required only without one (or with Other). */
+export const sendBackExpense = (id: string, comment: string, seen?: string, reason = '') => write(`/expenses/${id}/send-back`, { comment, reason }, seen);
 /** Delete a receipt for good (Delete receipts); the server keeps a copy with who and why. */
 export const deleteExpense = (id: string, reason: string) => call<{ deleted: true; id: string }>(`/expenses/${id}`, { method: 'DELETE', body: { reason } });
 export const voidExpense = (id: string, reason: string, seen?: string) => write(`/expenses/${id}/void`, { reason }, seen);
@@ -76,6 +77,8 @@ export const askAboutExpense = (id: string, to: string, question: string, seen?:
 export const withdrawAsk = (id: string, seen?: string) => write(`/expenses/${id}/ask/withdraw`, {}, seen);
 /** The person asked answers (2–500 characters); answering approves. */
 export const answerAsk = (id: string, answer: string, seen?: string) => write(`/expenses/${id}/answer`, { answer }, seen);
+/** Answer without approving: the receipt goes back to Accounting. */
+export const returnAsk = (id: string, answer: string, seen?: string) => write(`/expenses/${id}/answer`, { answer, decision: 'return' }, seen);
 /** Approved → waiting again, both approvals cleared (5–300 characters). */
 export const reopenExpense = (id: string, reason: string, seen?: string) => write(`/expenses/${id}/reopen`, { reason }, seen);
 /** Accounting fills in an Admin's own receipt: category, type, customer and note. */

@@ -29,4 +29,15 @@ describe('asking about a receipt: push and email', () => {
     await notifyAnswered(expense, ask, { push: async () => undefined, email: async () => { mailed = true; }, findPerson: async () => ({ email: '' }) });
     expect(mailed).toBe(false);
   });
+
+  it('says a receipt came back, not approved, when the person asked returned it', async () => {
+    const pushes: { title: string; body: string }[] = [], mails: { subject: string; html: string }[] = [];
+    await notifyAnswered(expense, { ...ask, answer: 'Personal, not a job', declined: true }, {
+      push: async (_ids, m) => { pushes.push(m); }, email: async (o) => { mails.push(o); }, findPerson: async () => ({ email: 'ann@x.test' })
+    });
+    expect(pushes[0]).toMatchObject({ title: 'Receipt returned to you' });
+    expect(pushes[0]!.body).toContain('didn’t approve');
+    expect(mails[0]!.subject).toMatch(/^Returned, not approved:/);
+    expect(mails[0]!.html).toContain('Personal, not a job');
+  });
 });

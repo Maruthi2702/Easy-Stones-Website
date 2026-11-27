@@ -1,4 +1,5 @@
 import { displayNameOf } from '../../utils/salesReps';
+import { askAgeText } from '../../utils/receiptApproval';
 import { isBigReceipt, missingFor, missingLine, onBank, statusTotals, subLabel } from '../../utils/cardReceipts';
 import { ALL_PEOPLE, viewerLocations, workLocationsOf } from '../../utils/teamScope';
 import type { PersonOption } from '../../api/myTeam';
@@ -180,7 +181,14 @@ export function statusBandOf(e: Expense, categories: readonly Category[]): Statu
   const segs: StatusBand['segs'] = ['done', ...chips.map((c, i): 'done' | 'now' | 'off' => (c.done ? 'done' : i === pending ? 'now' : 'off')), e.status === 'approved' ? 'done' : 'off'];
   const doneText = chips.map(chipText).join(' · ');
   if (e.status === 'waiting') {
-    if (askIsOpen(e) && e.ask) return { tone: 'wait', icon: '?', title: `Waiting for ${e.ask.toName}`, sub: `${e.ask.byName} asked a question`, segs };
+    if (askIsOpen(e) && e.ask) {
+      const age = askAgeText(e.ask.at);
+      return { tone: 'wait', icon: '?', title: `Waiting for ${e.ask.toName}`, sub: `${e.ask.byName} asked a question${age ? ` · open ${age}` : ''}`, segs };
+    }
+    // Answered without approving: it is Accounting's again (until Accounting approves, asks again or sends it back).
+    if (e.ask?.declined && e.ask.answeredAt && !e.approval) {
+      return { tone: 'wait', icon: '↩', title: 'Waiting for Accounting', sub: `${e.ask.toName} returned it without approving`, segs };
+    }
     const next = chips[pending];
     return {
       tone: 'wait', icon: '●',

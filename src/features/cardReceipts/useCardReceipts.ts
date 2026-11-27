@@ -186,10 +186,11 @@ export function useCardReceipts(user: ReceiptsUser | null) {
   /** "This is my receipt" on a Missing receipt row (review B2): the row goes, the receipt shows as the server left it. */
   const matchToCharge = (missing: Expense, receiptId: string) => run(async () => { const r = await api.matchReceiptToCharge(missing.id, receiptId); dropMissing(r.replacedMissing); return r; });
   const approve = (e: Expense, comment: string) => run(() => api.approveExpense(e.id, comment, e.updatedAt));
-  const sendBack = (e: Expense, comment: string) => run(() => api.sendBackExpense(e.id, comment, e.updatedAt));
+  const sendBack = (e: Expense, comment: string, reason = '') => run(() => api.sendBackExpense(e.id, comment, e.updatedAt, reason));
   const ask = (e: Expense, to: string, question: string) => run(() => api.askAboutExpense(e.id, to, question, e.updatedAt));
   const withdrawAsk = (e: Expense) => run(() => api.withdrawAsk(e.id, e.updatedAt));
   const answer = (e: Expense, text: string) => run(() => api.answerAsk(e.id, text, e.updatedAt));
+  const returnToAccounting = (e: Expense, text: string) => run(() => api.returnAsk(e.id, text, e.updatedAt));
   const reopen = (e: Expense, reason: string) => run(() => api.reopenExpense(e.id, reason, e.updatedAt));
   const fillDetails = (e: Expense, body: DetailsBody) => run(() => api.fillExpenseDetails(e.id, body, e.updatedAt));
   /** Delete for good: the receipt leaves every list here at once. */
@@ -213,7 +214,7 @@ export function useCardReceipts(user: ReceiptsUser | null) {
 
   return {
     me, month, setMonth, range, setRange, expenses, waiting, todo, waitingError, holders, loading: loading || !me, error, viewAll, teamOnly, approver,
-    reload, add, addOne, mergeOne, edit, matchToCharge, nearReceipts: api.nearReceipts, approve, sendBack, ask, withdrawAsk, answer, reopen, fillDetails, voidOne, deleteOne, remind,
+    reload, add, addOne, mergeOne, edit, matchToCharge, nearReceipts: api.nearReceipts, approve, sendBack, ask, withdrawAsk, answer, returnToAccounting, reopen, fillDetails, voidOne, deleteOne, remind,
     askTargets: api.askTargets, upload: api.uploadReceipt, scan: api.scanReceipt
   };
 }

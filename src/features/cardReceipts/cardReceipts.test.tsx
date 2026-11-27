@@ -472,7 +472,7 @@ describe('approvals, questions and reminders (2026-11-23)', () => {
 
   it('puts in ⋯ only what the receipt’s actions allow', async () => {
     await openWaiting(['use_card_receipts', 'approve_card_receipts', 'send_receipt_reminders'], 'CHEVRON');
-    expect(await menuItems()).toEqual(['Send back', 'Ask manager / Admin…', 'Send reminder…']);
+    expect(await menuItems()).toEqual(['Send back…', 'Ask manager / Admin…', 'Send reminder…']);
     cleanup();
     fake.waiting = [{ ...WAITING_LOST, actions: { ...NO_ACTIONS, approve: 'accounting', withdrawAsk: true }, ask: (WAITING_ASKED as Record<string, unknown>).ask }];
     await openWaiting(['use_card_receipts', 'approve_card_receipts'], 'CHEVRON');
@@ -862,6 +862,7 @@ describe('on a phone (owner’s design, 2026-11-26)', () => {
     await settle();
     const sent = fake.posted.find((p) => /\/expenses\/w4\/send-back$/.test(p.url));
     expect(sent?.body.comment).toBe('Which customer was this for?');
+    expect(sent?.body.reason).toBe('');
   });
 
   it('leaves the desktop alone off a phone: the toolbar, not the phone header', async () => {

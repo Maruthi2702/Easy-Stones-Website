@@ -20,7 +20,9 @@
  *     a comment, which approves: it fills the second approval when that's open and theirs to give. Asking takes
  *     back an Accounting approval already given, so Accounting gives the final approval after the answer.
  *     While a question is open nobody else approves; Accounting or an Admin can withdraw it.
- *   - **Send back** (Accounting or an Admin, with a comment) clears both approvals and any question.
+ *     **Return to Accounting** (2026-11-26): the person asked may instead answer without approving; their comment
+ *     is kept, no approval is given and the receipt waits for Accounting again (who may approve, ask again or send back).
+ *   - **Send back** (Accounting or an Admin; pick a reason and/or write a comment) clears both approvals and any question.
  *   - **Reopen** (Accounting or an Admin, with a reason) turns an approved receipt back to waiting, approvals cleared.
  *   - **An Admin's own charge** with no upload waits for Accounting (never "Missing receipt"): Accounting
  *     (or another Admin) fills in the category and approves it without a receipt.
@@ -65,6 +67,8 @@ export type Decision = { by: string; byName: string; at: string | Date; comment:
 export type Ask = {
   to: string; toName: string; by: string; byName: string; at: string | Date; question: string;
   answer: string; answeredAt: string | Date | null;
+  /** The person asked answered **without approving** (2026-11-26): it goes back to Accounting, who decides. */
+  declined?: boolean;
 };
 
 /** What the rules read off an expense (the stored record or the screen's view alike). */
@@ -239,4 +243,43 @@ export function approveProblem(s: ApprovalState & { lostReason?: string; receipt
   if (holderKindOf(s.holderRole) === 'admin') return s.category || s.statementKind ? '' : 'Pick a category before approving.';
   if (s.lostReason && !s.receiptUrl && !comment.trim()) return 'A lost receipt needs your comment to approve it.';
   return '';
+}
+
+/**
+ * Send back's quick reasons (owner, 2026-11-26): pick one and/or write a comment. A pick with no comment is
+ * enough ("Wrong category"); with one it reads "Wrong category: it was for the Kent job"; "Other" needs the comment.
+ * The result is stored as the send-back's comment, so every screen, history line and push already says it.
+ */
+export const SEND_BACK_REASONS = [
+  { key: 'category', label: 'Wrong category' },
+  { key: 'note', label: 'Missing note' },
+  { key: 'customer', label: 'Missing customer' },
+  { key: 'photo', label: 'Unreadable photo' },
+  { key: 'card', label: 'Wrong card' },
+  { key: 'other', label: 'Other' }
+] as const;
+export type SendBackReason = typeof SEND_BACK_REASONS[number]['key'];
+export const SEND_BACK_COMMENT_MAX = 500;
+
+export function sendBackText(reason: unknown, comment: unknown): { text: string; problem: string } {
+  const label = SEND_BACK_REASONS.find((r) => r.key === String(reason ?? ''))?.label ?? '';
+  const note = String(comment ?? '').trim();
+  const picked = label && String(reason) !== 'other' ? label : '';
+  const text = picked ? (note ? `${picked}: ${note}` : picked) : note;
+  if (!text) return { text: '', problem: 'Pick a reason or say why it’s going back' };
+  if (text.length > SEND_BACK_COMMENT_MAX) return { text: '', problem: `Keep it to ${SEND_BACK_COMMENT_MAX} characters` };
+  return { text, problem: '' };
+}
+
+const DAY_MS = 86_400_000;
+/** Whole days a question has been open (0 = under a day). */
+export function askAgeDays(at: string | Date | null | undefined, now: Date | number = Date.now()) {
+  const t = at ? new Date(at).getTime() : NaN;
+  const n = typeof now === 'number' ? now : now.getTime();
+  return Number.isFinite(t) ? Math.max(0, Math.floor((n - t) / DAY_MS)) : 0;
+}
+/** "3 days" / "1 day" while it has waited a day or more, else '' (nothing to flag). */
+export function askAgeText(at: string | Date | null | undefined, now: Date | number = Date.now()) {
+  const d = askAgeDays(at, now);
+  return d >= 1 ? `${d} ${d === 1 ? 'day' : 'days'}` : '';
 }

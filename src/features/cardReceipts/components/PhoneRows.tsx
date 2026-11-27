@@ -3,6 +3,7 @@ import type { KeyboardEvent, PointerEvent } from 'react';
 import { Check } from 'lucide-react';
 import { formatMoney, isBigReceipt, statusOf } from '../../../utils/cardReceipts';
 import { statementKindLabel } from '../../../utils/statementRows';
+import { askAgeText } from '../../../utils/receiptApproval';
 import { actionsOf, askIsOpen, categoryText, chipShort, chipsShown, firstName, statusLine } from '../cardReceiptsView';
 import { approveButton, groupByDay, shortStatus } from '../phoneList';
 import type { Category, Expense } from '../types';
@@ -88,7 +89,7 @@ export default function PhoneRows({ rows, today, categories, showHolder, selecti
                       {e.category ? <span className="ccr-tag">{categoryText(categories, e)}</span> : null}
                       {e.lostReason ? <span className="ccr-tag">Lost receipt</span> : null}
                       {e.recurring ? <span className="ccr-tag">Recurring</span> : null}
-                      {askIsOpen(e) ? <span className="ccr-tag is-ask">Asked {firstName(e.ask!.toName)}</span> : null}
+                      {askIsOpen(e) ? <span className="ccr-tag is-ask">Asked {firstName(e.ask!.toName)}{askAgeText(e.ask!.at) ? ` · ${askAgeText(e.ask!.at)}` : ''}</span> : null}
                     </span>
                   </span>
                   <span className="ccr-pr-r">

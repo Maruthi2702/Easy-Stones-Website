@@ -9,7 +9,7 @@ import * as db from '../db/cardReceipts/index.ts';
 import { customerById } from '../db/customers/index.ts';
 import { StaleExpenseError, RepeatExpenseError, EXPENSE_LIST_CAP, isChargePlaceholder } from '../db/cardReceipts/types.ts';
 import {
-  type ApprovalState, type ApprovalViewer, type Slot, askOpen, slotFor, approverAs, fullyApproved, canSendBack, canAsk, canWithdrawAsk,
+  type ApprovalState, type ApprovalViewer, type Slot, askOpen, slotFor, approverAs, fullyApproved, canSendBack, canAsk, canWithdrawAsk, sendBackText,
   canAnswer, canReopen, canFillDetails, mayBeAsked, slotForAnswer, waitingReason, approvalChips, secondNeeded, approveProblem,
   isAccountingSide, isBranchManagerOf, isManagerRole, isAdminRole, holderKindOf, mayViewHolderReceipts
 } from '../utils/receiptApproval.ts';
@@ -54,11 +54,12 @@ import type { Loose } from '../types/records.ts';
  *                                    the same day + total already saved answers 409 `repeat` unless `confirmRepeat`
  *   PUT    /expenses/:id             the cardholder, until it's approved
  *   POST   /expenses/:id/approve     { comment } (needed for a lost receipt): the Accounting or the second approval (receiptApproval.ts)
- *   POST   /expenses/:id/send-back   { comment } Accounting or an Admin; clears both approvals and the question
+ *   POST   /expenses/:id/send-back   { reason?, comment? } Accounting or an Admin; clears both approvals and the question
  *   GET    /expenses/:id/ask-targets who a question may go to
  *   POST   /expenses/:id/ask         { to, question } Accounting or an Admin; takes back an Accounting approval given
  *   POST   /expenses/:id/ask/withdraw
- *   POST   /expenses/:id/answer      { answer } the person asked; fills the second approval when theirs to give
+ *   POST   /expenses/:id/answer      { answer, decision? } the person asked; fills the second approval when theirs to give;
+ *                                    decision 'return' answers without approving (back to Accounting)
  *   POST   /expenses/:id/reopen      { reason } approved → waiting, both approvals cleared
  *   PUT    /expenses/:id/details     { category, subcategory, customerId, note } an Admin's own receipt, by Accounting
  *   POST   /expenses/:id/void        { reason } the cardholder, until it's approved; anyone with Void any receipt, approved ones too
@@ -130,7 +131,7 @@ const decisionView = (d: Loose | null | undefined, withAs = true) => (d && typeo
   : null);
 const askView = (a: Loose | null | undefined) => (a && typeof a === 'object'
   ? { to: String(a.to ?? ''), toName: String(a.toName ?? ''), by: String(a.by ?? ''), byName: String(a.byName ?? ''), at: a.at ?? null,
-      question: String(a.question ?? ''), answer: String(a.answer ?? ''), answeredAt: a.answeredAt ?? null }
+      question: String(a.question ?? ''), answer: String(a.answer ?? ''), answeredAt: a.answeredAt ?? null, declined: a.declined === true }
   : null);
 
 /** What the approval rules read off a stored expense (receiptApproval.ts), with its cardholder's role now. */
@@ -926,11 +927,12 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
   }));
 
   router.post('/expenses/:id/send-back', authenticate, anyOf(CARD_RECEIPTS.APPROVE), validateScalarRequest, guarded('send back', 'Could not save your decision.', async (req, res) => {
-    const comment = trimmed(req.body?.comment).slice(0, 500);
     const got = await loadForDecision(req, res);
     if (!got) return;
     if (!canSendBack(got.viewer, got.s)) return refuse(res, got, 'Only Accounting or an Admin sends a receipt back.');
-    if (!comment) return res.status(400).json({ message: 'Say why it’s going back.', problems: { comment: 'Say why it’s going back' } });
+    // A quick reason (Wrong category…) and/or a comment; "Other" or no reason needs the comment (sendBackText).
+    const { text: comment, problem } = sendBackText(req.body?.reason, trimmed(req.body?.comment));
+    if (problem) return res.status(400).json({ message: `${problem}.`, problems: { comment: problem } });
     const sentBack = { by: got.viewer.id, byName: actor(req), at: new Date(), comment };
     const saved = await saveDecision(req, res, got.expense, { status: 'sent_back', sentBack, approval: null, secondApproval: null, ask: null }, 'sent back', comment);
     if (saved) pushReceiptSentBack(saved, comment); // the cardholder is told, with the reason
@@ -1008,6 +1010,13 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       return res.status(400).json({ message: `${why}.`, problems: { answer: why } });
     }
     const now = new Date();
+    // "Return to Accounting": answered, kept, not approved. Accounting decides next.
+    if (req.body?.decision === 'return') {
+      const returned = { ...s.ask!, answer, answeredAt: now, declined: true };
+      const back = await saveDecision(req, res, expense, { ask: returned }, 'answered', [`Returned to Accounting, not approved`, answer].join(' · '));
+      if (back) fire('answer', () => notifyAnswered(back, returned, { base: siteBase(req) }));
+      return;
+    }
     const slot = slotForAnswer(viewer, s);
     const answered = { ...s.ask!, answer, answeredAt: now };
     const as = slot ? approverAs(slot, viewer) : null;

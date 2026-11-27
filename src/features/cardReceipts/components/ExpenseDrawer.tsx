@@ -4,7 +4,7 @@ import FormModal from '../../../components/shared/form/FormModal';
 import { FormSection, FormField } from '../../../components/shared/form/FormControls';
 import { billMismatch, billMismatchLine, formatMoney, isBigReceipt, usDate, fieldsOf } from '../../../utils/cardReceipts';
 import WarnLines from './WarnLines';
-import { approveProblem, holderKindOf } from '../../../utils/receiptApproval';
+import { approveProblem, askAgeText, holderKindOf } from '../../../utils/receiptApproval';
 import { actionsOf, askIsOpen, categoryText, isPdfUrl, reminderLine, remindable, statusBandOf } from '../cardReceiptsView';
 import type { StatusBand } from '../cardReceiptsView';
 import type { DetailsBody } from '../cardReceiptsApi';
@@ -33,7 +33,10 @@ export type ExpenseDrawerProps = {
   onDelete?: () => void;
   onApprove: (comment: string) => Promise<unknown>;
   onAnswer: (answer: string) => Promise<unknown>;
-  onSendBack: (comment: string) => Promise<unknown>;
+  /** Opens "Send back…" (a reason and/or a comment). */
+  onSendBack: () => void;
+  /** The person asked answers without approving: back to Accounting. */
+  onReturn: (answer: string) => Promise<unknown>;
   /** Opens "Ask manager / Admin…". */
   onAsk: () => void;
   onWithdrawAsk: () => Promise<unknown>;
@@ -109,11 +112,11 @@ function MoreMenu({ children }: { children: React.ReactNode }) {
  */
 export default function ExpenseDrawer({
   expense: e, categories, today = '', canEdit, canVoid, canDelete = false, canRemind = false,
-  onEdit, onUploadReceipt, onVoid, onDelete, onApprove, onAnswer, onSendBack, onAsk, onWithdrawAsk, onReopen, onRemind, onFillDetails, nearReceipts, onUseReceipt, onClose
+  onEdit, onUploadReceipt, onVoid, onDelete, onApprove, onAnswer, onSendBack, onReturn, onAsk, onWithdrawAsk, onReopen, onRemind, onFillDetails, nearReceipts, onUseReceipt, onClose
 }: ExpenseDrawerProps) {
   const [comment, setComment] = useState('');
   const [answer, setAnswer] = useState('');
-  const [busy, setBusy] = useState<'' | 'approve' | 'answer' | 'back' | 'withdraw'>('');
+  const [busy, setBusy] = useState<'' | 'approve' | 'answer' | 'return' | 'withdraw'>('');
   const [error, setError] = useState('');
   // "View full size": the big, zoomable receipt takes this same window's place until Back (or ✕ / Esc).
   const [viewing, setViewing] = useState(false);
@@ -157,10 +160,15 @@ export default function ExpenseDrawer({
         <Pencil size={18} aria-hidden="true" />{editLabel}
       </button>
     ) : null,
+    act.answer ? (
+      <button key="return" type="button" role="menuitem" className="ccr-more-item" disabled={Boolean(busy) || answerLen < ANSWER_MIN || answerLen > ANSWER_MAX}
+        title={answerLen >= ANSWER_MIN ? 'Your answer goes to Accounting and nothing is approved' : 'Write your answer first'} onClick={() => run('return', () => onReturn(answer.trim()))}>
+        <CornerUpLeft size={18} aria-hidden="true" />{busy === 'return' ? 'Returning…' : 'Return to Accounting'}
+      </button>
+    ) : null,
     act.sendBack ? (
-      <button key="back" type="button" role="menuitem" className="ccr-more-item" disabled={Boolean(busy) || !comment.trim()}
-        title={comment.trim() ? undefined : 'Write what needs fixing in the comment first'} onClick={() => run('back', () => onSendBack(comment.trim()))}>
-        <CornerUpLeft size={18} aria-hidden="true" />{busy === 'back' ? 'Sending…' : 'Send back'}
+      <button key="back" type="button" role="menuitem" className="ccr-more-item" disabled={Boolean(busy)} onClick={onSendBack}>
+        <CornerUpLeft size={18} aria-hidden="true" />Send back…
       </button>
     ) : null,
     act.ask ? (
@@ -218,8 +226,8 @@ export default function ExpenseDrawer({
       {e.voided ? <div className="ccr-note is-error">Voided by {e.voided.by || 'someone'}: {e.voided.reason}</div> : null}
       {ask ? (
         <div className={`ccr-ask${askIsOpen(e) ? ' is-open' : ''}`}>
-          <p><b>{ask.byName} asked {ask.toName}:</b> {ask.question}</p>
-          {ask.answeredAt ? <p><b>{ask.toName} answered:</b> {ask.answer}</p> : null}
+          <p><b>{ask.byName} asked {ask.toName}:</b> {ask.question}{askIsOpen(e) && askAgeText(ask.at) ? <span className="ccr-muted"> · open {askAgeText(ask.at)}</span> : null}</p>
+          {ask.answeredAt ? <p><b>{ask.toName} {ask.declined ? 'returned it without approving:' : 'answered:'}</b> {ask.answer}</p> : null}
         </div>
       ) : null}
       {needsCategory ? <div className="ccr-note is-warn"><AlertTriangle size={16} aria-hidden="true" /><span>Pick a category first — fill it in below, then approve.</span></div> : null}
@@ -286,18 +294,18 @@ export default function ExpenseDrawer({
         <FormSection>
           <FormField name="answer" id="ccr-answer" label="Your answer" required>
             <textarea id="ccr-answer" className="fm-input fm-textarea" rows={3} maxLength={ANSWER_MAX} autoCapitalize="sentences"
-              value={answer} onChange={(ev) => setAnswer(ev.target.value)} placeholder="Answering approves the receipt" />
+              value={answer} onChange={(ev) => setAnswer(ev.target.value)} placeholder="Answering approves the receipt. Or return it to Accounting from ⋯" />
           </FormField>
           <span className="ccr-counter">{answer.length} / {ANSWER_MAX}</span>
         </FormSection>
       ) : null}
 
-      {act.approve || act.sendBack ? (
+      {act.approve ? (
         <FormSection>
           <FormField name="comment" id="ccr-comment" label="Comment" required={needsComment}>
             <textarea id="ccr-comment" className="fm-input fm-textarea" rows={2} maxLength={500} autoCapitalize="sentences"
               value={comment} onChange={(ev) => setComment(ev.target.value)}
-              placeholder={needsComment ? 'Why you accept it without a receipt' : 'Optional note with your approval. Required to send back.'} />
+              placeholder={needsComment ? 'Why you accept it without a receipt' : 'Optional note with your approval'} />
           </FormField>
         </FormSection>
       ) : null}

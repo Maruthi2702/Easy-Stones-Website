@@ -29,7 +29,7 @@ afterEach(() => { cleanup(); });
 describe('the "No receipt yet" box', () => {
   const drawer = (extra: Record<string, unknown>) => render(
     <ExpenseDrawer expense={fromReport() as never} categories={CATEGORIES as never} canEdit canVoid={false} onEdit={() => {}} onVoid={() => {}}
-      onApprove={async () => {}} onAnswer={async () => {}} onSendBack={async () => {}} onAsk={() => {}} onWithdrawAsk={async () => {}}
+      onApprove={async () => {}} onAnswer={async () => {}} onSendBack={() => {}} onReturn={async () => {}} onAsk={() => {}} onWithdrawAsk={async () => {}}
       onReopen={() => {}} onRemind={() => {}} onFillDetails={async () => {}} onClose={() => {}} {...extra as object} />);
 
   it('is a button that asks to upload the receipt', () => {

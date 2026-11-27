@@ -678,11 +678,25 @@ describe('approval', () => {
     await approve(DIRECTOR, body.id).expect(200);
     await as(DIRECTOR).post(`/expenses/${body.id}/send-back`, { comment: 'No' }).expect(403);
     await as(ACCOUNTING).post(`/expenses/${body.id}/send-back`, { comment: '' }).expect(400);
+    await as(ACCOUNTING).post(`/expenses/${body.id}/send-back`, { reason: 'other', comment: '' }).expect(400);
+    await as(ACCOUNTING).post(`/expenses/${body.id}/send-back`, { reason: 'nonsense' }).expect(400);
     await as(ACCOUNTING).post(`/expenses/${body.id}/ask`, { to: ids.admin1, question: 'Which customer was this for?' }).expect(200);
     const back = await as(ADMIN2).post(`/expenses/${body.id}/send-back`, { comment: 'Was this the customer visit?' }).expect(200);
     expect(back.body.expense).toMatchObject({ status: 'sent_back', approval: null, secondApproval: null, ask: null, sentBack: { comment: 'Was this the customer visit?' } });
     const fixed = await as(REP).put(`/expenses/${body.id}`, { ...body, note: 'Parking for the Bellevue showroom visit' }).expect(200);
     expect(fixed.body.expense.status).toBe('waiting');
+  });
+
+  it('sends back with a quick reason alone, or a reason and a comment', async () => {
+    const one = big({ merchant: 'REASON ONE', category: 'parking' });
+    await as(REP).post('/expenses', one).expect(201);
+    const alone = await as(ACCOUNTING).post(`/expenses/${one.id}/send-back`, { reason: 'category' }).expect(200);
+    expect(alone.body.expense).toMatchObject({ status: 'sent_back', sentBack: { comment: 'Wrong category' } });
+    const two = big({ merchant: 'REASON TWO', category: 'parking', total: '241.00' });
+    await as(REP).post('/expenses', two).expect(201);
+    const both = await as(ACCOUNTING).post(`/expenses/${two.id}/send-back`, { reason: 'photo', comment: 'Cut off at the bottom' }).expect(200);
+    expect(both.body.expense).toMatchObject({ status: 'sent_back', sentBack: { comment: 'Unreadable photo: Cut off at the bottom' } });
+    expect(both.body.expense.history.at(-1)).toMatchObject({ action: 'sent back', changes: 'Unreadable photo: Cut off at the bottom' });
   });
 
   it('the first approval by anyone locks the holder out; Edit any still changes it and keeps the approvals', async () => {
@@ -775,6 +789,31 @@ describe('asking about a receipt', () => {
     expect(notices.at(-1)).toEqual({ kind: 'answered', to: ids.acct });
     // Accounting gives the final approval after the answer.
     expect((await q(ACCOUNTING).post(`/expenses/${body.id}/approve`).expect(200)).body.expense.status).toBe('approved');
+  });
+
+  it('lets the person asked return it to Accounting without approving, and Accounting decides next', async () => {
+    const body = big();
+    await as(REP).post('/expenses', body).expect(201);
+    await q(ACCOUNTING).post(`/expenses/${body.id}/approve`).expect(200);
+    await q(ACCOUNTING).post(`/expenses/${body.id}/ask`, { to: ids.director, question: 'Which job was this?' }).expect(200);
+    const askedOnly = { ...DIRECTOR, permissions: ['approve_card_receipts'] };
+    // Someone else can't return it, and a return needs the comment like an answer does.
+    await q(ADMIN1).post(`/expenses/${body.id}/answer`, { answer: 'Not for this', decision: 'return' }).expect(403);
+    await q(askedOnly).post(`/expenses/${body.id}/answer`, { answer: '', decision: 'return' }).expect(400);
+    const returned = await q(askedOnly).post(`/expenses/${body.id}/answer`, { answer: 'This was personal, not a job', decision: 'return' }).expect(200);
+    // No approval is given; the question is answered and marked returned; it is still waiting.
+    expect(returned.body.expense).toMatchObject({ status: 'waiting', approval: null, secondApproval: null, ask: { answer: 'This was personal, not a job', declined: true } });
+    expect(returned.body.expense.ask.answeredAt).toBeTruthy();
+    expect(returned.body.expense.history.at(-1)).toMatchObject({ action: 'answered', changes: 'Returned to Accounting, not approved · This was personal, not a job' });
+    expect(notices.at(-1)).toEqual({ kind: 'answered', to: ids.acct });
+    // It is Accounting's again (nobody holds a question open), and the person asked has nothing left to answer.
+    const mine = (await q(ACCOUNTING).get('/expenses?scope=waiting').expect(200)).body.expenses.find((e: Loose) => e.id === body.id);
+    expect(mine).toMatchObject({ waitingReason: 'accounting', actions: { approve: 'accounting', ask: true, sendBack: true, answer: false } });
+    await q(askedOnly).post(`/expenses/${body.id}/answer`, { answer: 'Again', decision: 'return' }).expect(409);
+    // Accounting may send it back or ask again.
+    const again = await q(ACCOUNTING).post(`/expenses/${body.id}/ask`, { to: ids.admin1, question: 'Can you check this one?' }).expect(200);
+    expect(again.body.expense.ask).toMatchObject({ to: ids.admin1, answeredAt: null });
+    expect(again.body.expense.ask.declined).toBeFalsy();
   });
 
   it('lets the person asked open the receipt file, and Accounting with Approve too', async () => {

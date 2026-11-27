@@ -2,6 +2,7 @@ import RowMenu from '../../../components/shared/RowMenu';
 import type { RowMenuItem } from '../../../components/shared/RowMenu';
 import { formatMoney, isBigReceipt, statusOf, usDate } from '../../../utils/cardReceipts';
 import { statementKindLabel } from '../../../utils/statementRows';
+import { askAgeText } from '../../../utils/receiptApproval';
 import { askIsOpen, categoryText, chipText, chipsShown, firstName, isPdfUrl, statusLine } from '../cardReceiptsView';
 import { branchClass } from '../statements/statementsView';
 import PhoneRows, { type QuickActions } from './PhoneRows';
@@ -47,7 +48,7 @@ const Tags = ({ e }: { e: Expense }) => (
   <>
     {e.lostReason ? <span className="ccr-tag">Lost receipt</span> : null}
     {e.recurring ? <span className="ccr-tag">Recurring</span> : null}
-    {askIsOpen(e) ? <span className="ccr-tag is-ask">Asked {firstName(e.ask!.toName)}</span> : null}
+    {askIsOpen(e) ? <span className="ccr-tag is-ask">Asked {firstName(e.ask!.toName)}{askAgeText(e.ask!.at) ? ` · ${askAgeText(e.ask!.at)}` : ''}</span> : null}
   </>
 );
 

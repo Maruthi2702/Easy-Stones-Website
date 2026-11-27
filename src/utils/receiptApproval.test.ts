@@ -3,7 +3,7 @@ import { CARD_RECEIPTS } from './cardReceipts.ts';
 import {
   needsSecondApproval, holderKindOf, isBranchManagerOf, branchManagersOf, canFill, slotFor, fullyApproved, canSendBack, canAsk,
   canWithdrawAsk, canAnswer, canReopen, canFillDetails, mayBeAsked, slotForAnswer, waitingReason, stillNeeded, approvalChips,
-  approveProblem, approverAs, mayViewHolderReceipts, type ApprovalState, type ApprovalViewer
+  approveProblem, approverAs, mayViewHolderReceipts, sendBackText, SEND_BACK_REASONS, askAgeDays, askAgeText, type ApprovalState, type ApprovalViewer
 } from './receiptApproval.ts';
 
 const A = [CARD_RECEIPTS.APPROVE];
@@ -237,5 +237,42 @@ describe('Waiting for me and the chips', () => {
       { key: 'second', label: 'Manager or Admin', by: '', done: false }
     ]);
     expect(stillNeeded({ ...big, approval: by(acct) })).toEqual({ accounting: false, second: true, askedId: '' });
+  });
+});
+
+describe('Send back reasons', () => {
+  it('a pick alone is enough, a comment is added after it', () => {
+    expect(sendBackText('category', '')).toEqual({ text: 'Wrong category', problem: '' });
+    expect(sendBackText('photo', ' blurry ')).toEqual({ text: 'Unreadable photo: blurry', problem: '' });
+  });
+  it('Other or no pick needs the comment', () => {
+    expect(sendBackText('other', '').problem).not.toBe('');
+    expect(sendBackText('', '').problem).not.toBe('');
+    expect(sendBackText('nonsense', '').problem).not.toBe('');
+    expect(sendBackText('other', 'See the note')).toEqual({ text: 'See the note', problem: '' });
+    expect(sendBackText('', 'Which job?')).toEqual({ text: 'Which job?', problem: '' });
+  });
+  it('keeps the stored text within 500 characters', () => {
+    expect(sendBackText('', 'x'.repeat(501)).problem).not.toBe('');
+    expect(sendBackText('category', 'x'.repeat(490)).problem).not.toBe('');
+    expect(SEND_BACK_REASONS.map((r) => r.key)).toContain('other');
+  });
+});
+
+describe('How long a question has been open', () => {
+  const at = new Date('2026-11-20T10:00:00Z');
+  const later = (h: number) => new Date(at.getTime() + h * 3_600_000);
+  it('counts whole days', () => {
+    expect(askAgeDays(at, later(5))).toBe(0);
+    expect(askAgeDays(at, later(24))).toBe(1);
+    expect(askAgeDays(at, later(24 * 3 + 20))).toBe(3);
+  });
+  it('says nothing under a day, then "1 day" / "N days"', () => {
+    expect(askAgeText(at, later(23))).toBe('');
+    expect(askAgeText(at, later(25))).toBe('1 day');
+    expect(askAgeText(at, later(24 * 4))).toBe('4 days');
+    expect(askAgeText(null, later(100))).toBe('');
+    expect(askAgeText('not a date', later(100))).toBe('');
+    expect(askAgeText(later(5), at)).toBe('');
   });
 });
