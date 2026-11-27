@@ -25,7 +25,7 @@ current rules when you reach it. **Owner steps are marked ▶.**
 5. ✔ **Icon — keep as is** (owner, 2026-11-26): `mobile/assets/icon.png` is 1024 × 1024 with no transparency, which meets Apple's rules; its edges are soft because it was enlarged from the 156 px mark. Replace it with a vector / larger logo later, in a new build.
 6. ▶ **Screenshots** (owner, 2026-11-26: **keep iPad support**, so both sets are needed and Apple reviews on an iPad too) —
    6.9-inch iPhone (1320 × 2868 or 1290 × 2796) and 13-inch iPad (2064 × 2752 or 2048 × 2732; the Simulator's "iPad Pro 13-inch"
-   gives it): dashboard, route map, delivery board, Add receipt / camera, Team Location. No real customer names or people's
+   gives it): dashboard, route map, delivery board, Add receipt / camera, the consent screen (not Team Location: the review login must not hold View team locations). No real customer names or people's
    locations — use the App Review login. Check the sizes against what App Store Connect accepts. Sign in once on an iPad (or the
    Simulator) first: the native sign-in and consent screens haven't been seen there.
 7. **Build 14+:** bump `ios.buildNumber` in `mobile/app.json` for every upload; then `cd mobile && npx expo prebuild` and archive in
