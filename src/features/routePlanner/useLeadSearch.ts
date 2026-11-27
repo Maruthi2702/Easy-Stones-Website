@@ -4,13 +4,16 @@ import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import { parseAddressComponents, loadRecentLeadSearches, saveRecentLeadSearch, removeRecentLeadSearch } from './helpers';
 import type { CurrentUser } from '../../types/records';
-import type { Lead } from './types';
+import { leadsInShape, shapeBounds } from './leadsInShape';
+import type { Lead, SelectionShape } from './types';
 
 export type LeadSearchDeps = {
     mapRef: MutableRefObject<google.maps.Map | null>;
     currentUser: CurrentUser | null;
     /** The open lead's panel (usePanels): a new search or a save closes it. */
     setLeadInfo: Dispatch<SetStateAction<Lead | null>>;
+    /** Closes the open lead, bringing back the Tools panel if it was opened from there. */
+    closeLeadInfo: () => void;
     /** Reloads the map's customers after a lead is saved as one. */
     reload: () => Promise<void>;
 };
@@ -21,7 +24,7 @@ export type LeadSearchDeps = {
  * from the customer pins: these are transient search results, not customer
  * data, until saveLead() turns one into a real Customer.
  */
-export function useLeadSearch({ mapRef, currentUser, setLeadInfo, reload }: LeadSearchDeps) {
+export function useLeadSearch({ mapRef, currentUser, setLeadInfo, closeLeadInfo, reload }: LeadSearchDeps) {
     const [leadQuery, setLeadQuery] = useState('');
     const [leadResults, setLeadResults] = useState<Lead[]>([]);
     const [leadSearching, setLeadSearching] = useState(false);
@@ -36,9 +39,11 @@ export function useLeadSearch({ mapRef, currentUser, setLeadInfo, reload }: Lead
     // options would throw ("Loader must not be called again with different
     // options") instead of loading. importLibrary sidesteps that entirely
     // since it never touches the shared loader's own options.
-    const searchLeads = useCallback(async (queryText: string) => {
+    // `area` is the Radius / Lasso the Tools panel drew: Places can only be asked
+    // for a rectangle, so it asks for the shape's box and keeps what's inside.
+    const searchLeads = useCallback(async (queryText: string, area: SelectionShape | null = null) => {
         if (!mapRef.current || !window.google?.maps) return;
-        const bounds = mapRef.current.getBounds();
+        const bounds = area ? shapeBounds(area) : mapRef.current.getBounds();
         if (!bounds) {
             setLeadError('The map is still loading — try again in a moment.');
             return;
@@ -54,7 +59,7 @@ export function useLeadSearch({ mapRef, currentUser, setLeadInfo, reload }: Lead
                 locationRestriction: bounds,
                 maxResultCount: 20
             });
-            setLeadResults((places || []).map(p => ({
+            const found = (places || []).map(p => ({
                 placeId: p.id,
                 name: p.displayName || 'Unnamed business',
                 address: p.formattedAddress || '',
@@ -62,7 +67,8 @@ export function useLeadSearch({ mapRef, currentUser, setLeadInfo, reload }: Lead
                 types: p.types || [],
                 coordinates: { lat: p.location!.lat(), lng: p.location!.lng() },
                 addressParts: parseAddressComponents(p.addressComponents as Parameters<typeof parseAddressComponents>[0])
-            })));
+            }));
+            setLeadResults(area ? leadsInShape(found, area) : found);
             setLeadInfo(null);
             setRecentLeadSearches(saveRecentLeadSearch(queryText));
         } catch (err) {
@@ -99,7 +105,7 @@ export function useLeadSearch({ mapRef, currentUser, setLeadInfo, reload }: Lead
             const body = await res.json();
             if (!res.ok) throw new Error(body.message || 'Could not save this lead');
             setLeadResults(prev => prev.filter(p => p.placeId !== place.placeId));
-            setLeadInfo(null);
+            closeLeadInfo();
             await reload();
         } catch (err) {
             setLeadError((err as Error).message || 'Could not save this lead');

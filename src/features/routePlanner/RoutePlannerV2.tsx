@@ -105,7 +105,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     });
     const schedule = useScheduleData();
     const actions = useScheduleActions({ schedule, date: plan.date, replaceExisting: plan.replaceExisting, canReplace: can.replace, setError });
-    const leads = useLeadSearch({ mapRef, currentUser, setLeadInfo: panels.setLeadInfo, reload: pinsData.load });
+    const leads = useLeadSearch({ mapRef, currentUser, setLeadInfo: panels.setLeadInfo, closeLeadInfo: panels.closeLeadInfo, reload: pinsData.load });
     const edit = useCustomerEdit({ setPins: pinsData.setPins, setInfo: panels.setInfo, setReturnPanel: panels.setReturnPanel, reload: pinsData.load, setError });
 
     // This component stays mounted behind display:none when you navigate
@@ -228,7 +228,15 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
                 leadResults={leads.leadResults}
                 leadInfo={panels.leadInfo}
                 onSelectLead={panels.showLeadDetails}
-                onCloseLeadInfo={() => panels.setLeadInfo(null)}
+                onCloseLeadInfo={panels.closeLeadInfo}
+                leadSearch={{
+                    query: leads.leadQuery,
+                    onQueryChange: leads.setLeadQuery,
+                    onSearch: leads.searchLeads,
+                    searching: leads.leadSearching,
+                    recent: leads.recentLeadSearches,
+                    onRemoveRecent: leads.removeRecent
+                }}
                 showFilterPanel={panels.showFilterPanel}
                 onCloseFilterPanel={() => panels.setShowFilterPanel(false)}
                 types={view.types}

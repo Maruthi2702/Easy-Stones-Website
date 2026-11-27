@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { GoogleMap, Marker, Polyline, TrafficLayer } from '@react-google-maps/api';
 import { Lasso, LocateFixed } from 'lucide-react';
@@ -14,6 +14,8 @@ import { leadMarkerIcon, usePinIcons } from './markerIcons';
 import { useMapView } from './useMapView';
 import { useDrawGestures } from './useDrawGestures';
 import { useDirections } from './useDirections';
+import { leadsInShape } from '../leadsInShape';
+import type { AreaLeadSearch } from '../panels/AreaLeads';
 import type { CustomerOption } from '../../../utils/customerOptions';
 import type {
     ColorMode, DrawMode, LatLng, Lead, MapPin as Customer, Pin, RecencyBucket, RecencyColors, RepOption, ReturnPanel,
@@ -70,7 +72,9 @@ export type MapCanvasProps = DayScheduleProps & {
     onSelectPin: (pin: Customer, origin?: ReturnPanel) => void;
     leadResults: Lead[];
     leadInfo: Lead | null;
-    onSelectLead: (place: Lead) => void;
+    onSelectLead: (place: Lead, origin?: 'tools' | null) => void;
+    /** The lead search, so the Tools panel can run it inside the drawn shape. */
+    leadSearch: AreaLeadSearch;
     onCloseLeadInfo: () => void;
     onSaveLead: (place: Lead) => void;
     savingLead: boolean;
@@ -136,7 +140,7 @@ const MapCanvas = ({
     myPosition,
     unselectedPins, orderById,
     info, onSelectPin,
-    leadResults, leadInfo, onSelectLead, onCloseLeadInfo, onSaveLead, savingLead, canSaveLead, leadError,
+    leadResults, leadInfo, onSelectLead, onCloseLeadInfo, leadSearch, onSaveLead, savingLead, canSaveLead, leadError,
     replaceExisting, onReplaceExistingChange, onClearPlannedDay,
     showFilterPanel, onCloseFilterPanel,
     types, activeTypes, typeCounts, onToggleType, onToggleAllTypes,
@@ -169,6 +173,7 @@ const MapCanvas = ({
     const { lassoPreviewCount } = useDrawGestures({ mapRef, mapReady, drawMode, selectionShape, onRadiusSelect, onLassoSelect, selectedPins, unselectedPins });
     const { path: routePath, directionsRequest } = useDirections({ day, origin, mapReady });
     const markerIcon = usePinIcons(colors, colorMode);
+    const leadsInArea = useMemo(() => leadsInShape(leadResults || [], selectionShape), [leadResults, selectionShape]);
 
     return (
         <div className="rpv2-map">
@@ -337,6 +342,15 @@ const MapCanvas = ({
                     saved={saved}
                     scheduleOpen={scheduleOpen}
                     onToggleSchedule={() => setScheduleOpen(v => !v)}
+                    leads={{
+                        shape: selectionShape,
+                        leads: leadsInArea,
+                        search: leadSearch,
+                        onSelect: (lead) => onSelectLead(lead, 'tools'),
+                        onSave: onSaveLead,
+                        saving: savingLead,
+                        canSave: canSaveLead
+                    }}
                 />
             )}
 

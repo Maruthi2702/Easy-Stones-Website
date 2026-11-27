@@ -114,3 +114,87 @@
     font-weight: 700;
     font-variant-numeric: tabular-nums;
 }
+
+/* Selected customers | Leads in area — replaces the old one-line heading. */
+.rpv2-tools-tabs {
+    display: flex;
+    gap: 0.25rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--cd2-line);
+}
+
+.rpv2-tools-tabs button {
+    flex: 1;
+    padding: 0.4rem 0.3rem;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--cd2-muted);
+    cursor: pointer;
+}
+
+.rpv2-tools-tabs button.is-on { color: var(--cd2-ink); border-bottom-color: #d4af37; }
+
+/* The Leads tab's search row reuses the Find-leads flyout's input look
+   (LeadSearchControl.css); this only fits it into the panel. */
+.rpv2-tools-leads-search .rpv2-lead-row { width: 100%; }
+.rpv2-tools-leads-search .rpv2-lead-input { min-width: 0; }
+
+.rpv2-tools-leads-go {
+    padding: 0.3rem 0.8rem;
+    border: none;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #d4af37, #dd6a58);
+    color: #1a1a19;
+    font: inherit;
+    font-size: 0.76rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.rpv2-tools-leads-go:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.rpv2-tools-leads-recent { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+
+.rpv2-tools-leads-chip {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--cd2-line);
+    border-radius: 999px;
+    background: var(--cd2-hover);
+    font-size: 0.74rem;
+    color: var(--cd2-ink);
+}
+
+.rpv2-tools-leads-chip button {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.5rem;
+    border: none;
+    background: transparent;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+
+.rpv2-tools-leads-chip button + button { padding-left: 0; color: var(--cd2-muted); }
+
+/* Phone: the panel is a full-screen takeover (MapCanvas.css, 720px). 16px
+   keeps iOS from zooming into the search box; the row's + and the chips get
+   touch-sized targets. */
+@media (max-width: 720px) {
+    .rpv2-tools-leads-search .rpv2-lead-input { font-size: 16px; }
+    .rpv2-tools-leads-go { padding: 0.5rem 1rem; font-size: 0.85rem; }
+    .rpv2-tools-leads-chip { font-size: 0.82rem; }
+    .rpv2-tools-leads-chip button { padding: 0.4rem 0.6rem; }
+    .rpv2-tools-leads-chip button + button { padding: 0.4rem 0.6rem 0.4rem 0; }
+    .rpv2-tools-list .rpv2-panel-icon-btn {
+        width: 38px; height: 38px; align-items: center; justify-content: center;
+    }
+    .rpv2-tools-tabs button { padding: 0.65rem 0.3rem; font-size: 0.74rem; }
+}

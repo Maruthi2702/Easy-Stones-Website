@@ -137,10 +137,24 @@ describe('Route Planner', () => {
     mapEvent('mousemove', at(47.61, -122.05));
     mapEvent('mouseup');
     await settle();
-    expect(screen.getByText('Selected customers (3)')).toBeTruthy();
+    expect(screen.getByText('Customers (3)')).toBeTruthy();
     expect(screen.getByText('Stop 1')).toBeTruthy();
     fireEvent.click(screen.getByText('Schedule'));
     expect(screen.getByText(/Put 3 stops on/)).toBeTruthy();
+  });
+
+  it('Tools: the Leads tab lists the found leads inside the drawn area', async () => {
+    await open();
+    fireEvent.click(screen.getByLabelText('Selection tools'));
+    fireEvent.click(screen.getByRole('tab', { name: /Leads \(0\)/ }));
+    expect(screen.getByText(/Draw a Radius or Lasso/)).toBeTruthy();
+    fireEvent.click(screen.getByText('Radius'));
+    mapEvent('mousedown', at(47.61, -122.3));
+    mapEvent('mousemove', at(47.61, -122.05));
+    mapEvent('mouseup');
+    await settle();
+    expect(screen.getByText('No leads in this area yet. Search above to find some.')).toBeTruthy();
+    expect(screen.getByLabelText('Search for leads inside the drawn area')).toBeTruthy();
   });
 
   it('Customers and Schedule panels', async () => {

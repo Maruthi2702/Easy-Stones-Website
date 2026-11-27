@@ -51,6 +51,9 @@ export function usePanels({ mapRef, currentUser, detailsCache, pinById }: Panels
     const [showSchedulePanel, setShowSchedulePanel] = useState(false);
     // A lead-search result opened from the map (see useLeadSearch).
     const [leadInfo, setLeadInfo] = useState<Lead | null>(null);
+    // 'tools' when the lead was opened from the Tools panel's Leads list, so
+    // closing it brings that list back (as closeInfo does for a customer).
+    const [leadReturn, setLeadReturn] = useState<'tools' | null>(null);
 
     // Kept stable (useCallback) so MapCanvas's pin layer — which takes this
     // as onSelectPin — doesn't redraw every marker whenever the page
@@ -128,7 +131,8 @@ export function usePanels({ mapRef, currentUser, detailsCache, pinById }: Panels
     // Same fixed-column treatment as showDetails, for a lead-search result
     // instead of a Customer — the two panels are mutually exclusive (opening
     // one closes the other) since both occupy the same right-hand column.
-    const showLeadDetails = useCallback((place: Lead) => {
+    const showLeadDetails = useCallback((place: Lead, origin: 'tools' | null = null) => {
+        setLeadReturn(origin);
         setInfo(null);
         setReturnPanel(null);
         setShowFilterPanel(false);
@@ -140,6 +144,12 @@ export function usePanels({ mapRef, currentUser, detailsCache, pinById }: Panels
         mapRef.current.panTo(place.coordinates);
         mapRef.current.panBy(PANEL_WIDTH / 2, 0);
     }, [mapRef]);
+
+    const closeLeadInfo = useCallback(() => {
+        if (leadInfo && leadReturn === 'tools') setShowToolsPanel(true);
+        setLeadInfo(null);
+        setLeadReturn(null);
+    }, [leadInfo, leadReturn]);
 
     const toggleFilterPanel = () => {
         setShowFilterPanel(prev => {
@@ -224,7 +234,7 @@ export function usePanels({ mapRef, currentUser, detailsCache, pinById }: Panels
     return {
         showFilterPanel, setShowFilterPanel, showToolsPanel, setShowToolsPanel, showCustomersPanel, showSchedulePanel,
         drawMode, setDrawMode, info, setInfo, returnPanel, setReturnPanel, leadInfo, setLeadInfo,
-        showDetails, closeInfo, showLeadDetails, showScheduledVisit, showCustomerFromList,
+        showDetails, closeInfo, showLeadDetails, closeLeadInfo, showScheduledVisit, showCustomerFromList,
         toggleFilterPanel, toggleToolsPanel, toggleCustomersPanel, toggleSchedulePanel,
         armRadiusTool, armLassoTool, handleMapClick
     };
