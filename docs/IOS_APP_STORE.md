@@ -34,6 +34,10 @@ current rules when you reach it. **Owner steps are marked ▶.**
 ## Distribution and the account
 - ▶ The account is an **individual** developer account. For an **unlisted** app (staff only) use Apple's unlisted
   app distribution request form after the first build is in App Store Connect — check Apple still offers it to an individual account.
+- **Decision (owner, 2026-11-26): submit under the personal developer account now**; the company account / transfer comes later.
+  What that means: the App Store shows the owner's own name as the seller; Apple may question a company-specific app on an
+  individual account (the unlisted / custom-app routes are the usual answer — say in the review notes that it is a private staff
+  app); the APNs key and Team ID belong to the personal team and are redone on transfer.
 - ▶ **Move to the company account** before people rely on the app: an app on a personal account disappears for everyone if that
   person leaves or stops paying. Get a **D-U-N-S number** for Easy Surfaces (free, days to weeks), enrol the company as an
   **Organization** (two admins), then in App Store Connect start an **App Transfer**. The bundle ID stays; the Team ID changes, so
