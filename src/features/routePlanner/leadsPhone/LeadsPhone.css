@@ -1,0 +1,360 @@
+/* The phone's Find new leads (LeadsPhone.tsx): a search bar pinned to the top of the screen
+   and a bottom sheet, portaled to the body and fixed to the screen like the other phone
+   sheets (CLAUDE.md, "Phones: pop-ups, sheets and the iPhone keyboard"). Nothing here sizes
+   or places itself from visualViewport: the bar is at the top, so the keyboard never covers
+   it. Stacked above the phone tab bar (96–98) and below every form and modal. */
+.lp {
+    --lp-bg: #1c1c1e;
+    --lp-ink: #ffffff;
+    --lp-mut: #a8a79f;
+    --lp-line: rgba(255, 255, 255, 0.08);
+    --lp-edge: rgba(255, 255, 255, 0.14);
+    --lp-chip: #2c2c2e;
+    --lp-grip: #636366;
+    --lp-gold: #d4af37;
+    --lp-gold-ink: #141413;
+    --lp-gold-text: #d4af37;
+    --lp-shadow: rgba(0, 0, 0, 0.4);
+    font-family: var(--font-main, 'Inter', system-ui, sans-serif);
+    color: var(--lp-ink);
+}
+body.light-theme-active .lp {
+    --lp-bg: #ffffff;
+    --lp-ink: #161514;
+    --lp-mut: #6b6a63;
+    --lp-line: #e9e6dc;
+    --lp-edge: #e1e0d9;
+    --lp-chip: #f0efec;
+    --lp-grip: #c9c7bf;
+    --lp-gold-text: #8a6b1f;
+    --lp-shadow: rgba(0, 0, 0, 0.18);
+}
+.lp *, .lp *::before, .lp *::after { box-sizing: border-box; }
+.lp button, .lp a { font: inherit; -webkit-tap-highlight-color: transparent; }
+
+/* The bar. 16px text so iOS does not zoom the page when it takes focus. */
+.lp-bar {
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top));
+    left: 12px;
+    right: 12px;
+    height: 52px;
+    z-index: 120;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 4px 0 16px;
+    border-radius: 26px;
+    background: var(--lp-bg);
+    border: 1px solid var(--lp-edge);
+    box-shadow: 0 8px 24px var(--lp-shadow);
+}
+.lp-bar:focus-within { border-color: var(--lp-gold); }
+.lp-bar-ic { flex: none; color: var(--lp-gold-text); }
+.lp-input {
+    flex: 1;
+    min-width: 0;
+    height: 44px;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--lp-ink);
+    font-size: 16px;
+    font-weight: 500;
+    padding: 0;
+}
+.lp-input::placeholder { color: var(--lp-mut); font-weight: 400; }
+.lp-x {
+    flex: none;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--lp-mut);
+    padding: 0;
+}
+.lp-spin {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid var(--lp-line);
+    border-top-color: var(--lp-gold);
+    animation: lp-spin 0.8s linear infinite;
+}
+@keyframes lp-spin { to { transform: rotate(360deg); } }
+
+/* Recent searches, under the bar while it has focus. */
+.lp-panel {
+    position: fixed;
+    top: calc(max(12px, env(safe-area-inset-top)) + 62px);
+    left: 12px;
+    right: 12px;
+    z-index: 120;
+    max-height: 40vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-radius: 18px;
+    background: var(--lp-bg);
+    border: 1px solid var(--lp-edge);
+    box-shadow: 0 10px 30px var(--lp-shadow);
+}
+.lp-scope {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--lp-mut);
+    border-bottom: 1px solid var(--lp-line);
+}
+.lp-scope svg { flex: none; color: var(--lp-gold-text); }
+.lp-scope b { color: var(--lp-ink); font-weight: 600; }
+.lp-scope.is-warn { color: var(--lp-gold-text); }
+.lp-lab {
+    padding: 12px 16px 4px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--lp-mut);
+}
+.lp-rec { display: flex; align-items: center; min-height: 48px; }
+.lp-rec-term {
+    flex: 1;
+    min-width: 0;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 8px 0 16px;
+    border: 0;
+    background: transparent;
+    color: var(--lp-ink);
+    font-size: 16px;
+    text-align: left;
+}
+.lp-rec-term svg { flex: none; color: var(--lp-mut); }
+.lp-rec-x {
+    flex: none;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+    color: var(--lp-mut);
+    padding: 0;
+}
+
+/* "Search this area" / "Zoom in to search", under the bar. */
+.lp-pill {
+    position: fixed;
+    top: calc(max(12px, env(safe-area-inset-top)) + 64px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 119;
+    height: 44px;
+    padding: 0 18px 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 0;
+    border-radius: 22px;
+    background: var(--lp-gold);
+    color: var(--lp-gold-ink);
+    font-size: 15px;
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: 0 8px 22px var(--lp-shadow);
+}
+.lp-pill--info { background: var(--lp-bg); color: var(--lp-ink); border: 1px solid var(--lp-edge); }
+.lp-pill--info svg { color: var(--lp-gold-text); }
+
+/* The sheet. */
+.lp-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 119;
+    display: flex;
+    flex-direction: column;
+    background: var(--lp-bg);
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -12px 40px var(--lp-shadow);
+    overflow: hidden;
+}
+.lp-sheet.is-peek { height: 250px; transition: height 0.2s ease; }
+.lp-sheet.is-full { height: calc(100vh - 250px); height: calc(100dvh - 250px); transition: height 0.2s ease; }
+@media (prefers-reduced-motion: reduce) { .lp-sheet.is-peek, .lp-sheet.is-full { transition: none; } }
+
+.lp-handle {
+    flex: none;
+    width: 100%;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    touch-action: none;
+}
+.lp-handle span { width: 40px; height: 5px; border-radius: 3px; background: var(--lp-grip); }
+.lp-head { flex: none; display: flex; align-items: baseline; gap: 8px; padding: 6px 20px 12px; }
+.lp-head b { font-size: 18px; font-weight: 700; }
+.lp-head span { font-size: 13px; color: var(--lp-mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.lp-list {
+    flex: 1;
+    min-height: 0;
+    margin: 0;
+    padding: 0 0 env(safe-area-inset-bottom);
+    list-style: none;
+    overscroll-behavior: contain;
+}
+.lp-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 76px;
+    padding: 0 12px 0 0;
+    border-top: 1px solid var(--lp-line);
+}
+.lp-row-main {
+    flex: 1;
+    min-width: 0;
+    min-height: 76px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 0 0 20px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+}
+.lp-num {
+    flex: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #2e9e6c;
+    color: #141413;
+    font-size: 13px;
+    font-weight: 700;
+}
+.lp-nm { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.lp-nm b { font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lp-nm span { font-size: 13px; color: var(--lp-mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lp-act {
+    flex: none;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 1px solid var(--lp-edge);
+    background: transparent;
+    color: var(--lp-ink);
+    text-decoration: none;
+    padding: 0;
+}
+.lp-act--add { background: var(--lp-gold); border-color: var(--lp-gold); color: var(--lp-gold-ink); }
+.lp-act:disabled { opacity: 0.55; }
+.lp-saved {
+    flex: none;
+    width: 68px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    color: var(--lp-gold-text);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* One lead's card, and the plain messages. */
+.lp-card, .lp-msg { padding: 0 20px calc(28px + env(safe-area-inset-bottom)); }
+.lp-card h2, .lp-msg h2 { margin: 0 0 4px; font-size: 22px; font-weight: 700; line-height: 1.2; }
+.lp-msg h2 { font-size: 20px; }
+.lp-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    min-height: 44px;
+    margin: 0 0 0 -8px;
+    padding: 0 8px;
+    border: 0;
+    background: transparent;
+    color: var(--lp-mut);
+    font-size: 14px;
+    font-weight: 500;
+}
+.lp-tags { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 14px; }
+.lp-tags span {
+    height: 28px;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    border-radius: 14px;
+    background: var(--lp-chip);
+    font-size: 13px;
+}
+.lp-info { display: flex; flex-direction: column; gap: 12px; margin-bottom: 18px; }
+.lp-info div { display: flex; align-items: flex-start; gap: 12px; font-size: 15px; line-height: 1.35; }
+.lp-info svg { flex: none; margin-top: 1px; color: var(--lp-mut); }
+.lp-two { display: flex; gap: 10px; margin-bottom: 10px; }
+.lp-btn {
+    flex: 1;
+    min-height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 25px;
+    border: 1px solid var(--lp-edge);
+    background: transparent;
+    color: var(--lp-ink);
+    font-size: 16px;
+    font-weight: 600;
+    text-decoration: none;
+    padding: 0 16px;
+}
+.lp-btn--gold { width: 100%; flex: none; min-height: 54px; border-radius: 27px; background: var(--lp-gold); border-color: var(--lp-gold); color: var(--lp-gold-ink); }
+.lp-btn--gold:disabled { opacity: 0.6; }
+.lp-btn--done { width: 100%; flex: none; min-height: 54px; border-radius: 27px; color: var(--lp-gold-text); border-color: var(--lp-gold); }
+.lp-msg-ic {
+    width: 48px;
+    height: 48px;
+    margin: 6px 0 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+.lp-msg-ic--gold { background: rgba(212, 175, 55, 0.16); color: var(--lp-gold-text); }
+.lp-msg-ic--grey { background: var(--lp-chip); color: var(--lp-mut); }
+.lp-msg p { margin: 0 0 18px; font-size: 15px; line-height: 1.45; color: var(--lp-mut); }
+.lp-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 20px; }
+.lp-chip {
+    min-height: 44px;
+    padding: 0 18px;
+    border-radius: 22px;
+    border: 1px solid var(--lp-edge);
+    background: transparent;
+    color: var(--lp-ink);
+    font-size: 15px;
+    font-weight: 500;
+}
+.lp-msg .lp-lab { padding: 0; }

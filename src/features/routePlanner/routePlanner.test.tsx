@@ -187,3 +187,98 @@ describe('Route Planner', () => {
     expect(screen.getByText('The map needs a Google Maps key')).toBeTruthy();
   });
 });
+
+// The phone's Find new leads (leadsPhone/): ⋯ → Find new leads opens a search bar at the top and
+// a sheet of results at the bottom. Places is faked: it answers with whatever `placesAnswer` holds.
+describe('Route Planner: Find new leads on a phone', () => {
+  const place = (id: string, name: string, lat: number, lng: number, phone = '') => ({
+    id, displayName: name, formattedAddress: `1 ${name} St, Kent, WA`, internationalPhoneNumber: phone, types: ['countertop_store'],
+    location: { lat: () => lat, lng: () => lng },
+    addressComponents: [{ longText: 'Kent', shortText: 'Kent', types: ['locality'] }]
+  });
+  let placesAnswer: unknown[] = [];
+  const searches: unknown[] = [];
+  beforeEach(() => {
+    placesAnswer = [];
+    searches.length = 0;
+    (window as unknown as { google: { maps: Record<string, unknown> } }).google.maps.importLibrary = async () => ({
+      Place: { searchByText: async (req: unknown) => { searches.push(req); return { places: placesAnswer }; } }
+    });
+  });
+  const openLeads = async () => {
+    await open();
+    fireEvent.click(screen.getByLabelText('More map options'));
+    fireEvent.click(screen.getByText('Find new leads'));
+    await settle();
+  };
+  const searchFor = async (text: string) => {
+    const box = screen.getByLabelText('Search for new leads by business type');
+    fireEvent.change(box, { target: { value: text } });
+    fireEvent.keyDown(box, { key: 'Enter' });
+    await settle();
+  };
+
+  it('opens a search bar under the top edge, not an input inside the menu', async () => {
+    await openLeads();
+    expect(screen.getByTestId('leads-phone')).toBeTruthy();
+    expect(screen.getByText(/the map area on screen/)).toBeTruthy();
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect((screen.getByLabelText('Search for new leads by business type') as HTMLInputElement).className).toContain('no-capitalize');
+  });
+
+  it('lists what it finds nearest first, and saving keeps the lead on the list as Saved', async () => {
+    placesAnswer = [place('p2', 'Far Stone', 47.9, -122.3, '(206) 555-0100'), place('p1', 'Near Stone', 47.601, -122.3)];
+    await openLeads();
+    await searchFor('countertops');
+    expect(screen.getByText('2 leads')).toBeTruthy();
+    const names = [...document.querySelectorAll('.lp-nm b')].map((e) => e.textContent);
+    expect(names.length).toBe(2);
+    expect(searches.length).toBe(1);
+    expect(document.querySelectorAll('a[href^="tel:"]').length).toBe(1);
+    const before = calls.length;
+    fireEvent.click(screen.getByLabelText('Save Far Stone as a lead'));
+    await settle();
+    expect(calls.length).toBeGreaterThan(before);
+    expect(screen.getByText('Saved')).toBeTruthy();
+    expect(screen.getByText('Far Stone')).toBeTruthy();
+  });
+
+  it('opens one lead’s card from its row and goes back to the list', async () => {
+    placesAnswer = [place('p1', 'Near Stone', 47.601, -122.3, '(206) 555-0100')];
+    await openLeads();
+    await searchFor('countertops');
+    fireEvent.click(screen.getByText('Near Stone'));
+    expect(screen.getByRole('heading', { name: 'Near Stone' })).toBeTruthy();
+    expect(screen.getByText('Directions')).toBeTruthy();
+    fireEvent.click(screen.getByText('1 lead'));
+    expect(screen.getByText('this map area', { exact: false })).toBeTruthy();
+  });
+
+  it('says so when nothing matched, and offers another word', async () => {
+    await openLeads();
+    await searchFor('countertops');
+    expect(screen.getByText('No “countertops” found here')).toBeTruthy();
+    expect(screen.getByText('stone fabricator')).toBeTruthy();
+    expect(screen.getByText('Zoom out and search again')).toBeTruthy();
+  });
+
+  it('asks to zoom in instead of searching a map wider than a town', async () => {
+    await openLeads();
+    gm.map.getCenter = () => ({ lat: () => 47.6, lng: () => -122.3 });
+    gm.map.getZoom = () => 8;
+    await searchFor('countertops');
+    expect(screen.getByText('Zoom in to find leads')).toBeTruthy();
+    expect(searches.length).toBe(0);
+  });
+
+  it('✕ closes it and takes the pins off the map', async () => {
+    placesAnswer = [place('p1', 'Near Stone', 47.601, -122.3)];
+    await openLeads();
+    await searchFor('countertops');
+    expect(marker('Near Stone')).toBeTruthy();
+    fireEvent.click(screen.getByLabelText('Close lead search'));
+    await settle();
+    expect(screen.queryByTestId('leads-phone')).toBeNull();
+    expect(marker('Near Stone')).toBeFalsy();
+  });
+});

@@ -41,12 +41,14 @@ export function useLeadSearch({ mapRef, currentUser, setLeadInfo, closeLeadInfo,
     // since it never touches the shared loader's own options.
     // `area` is the Radius / Lasso the Tools panel drew: Places can only be asked
     // for a rectangle, so it asks for the shape's box and keeps what's inside.
-    const searchLeads = useCallback(async (queryText: string, area: SelectionShape | null = null) => {
-        if (!mapRef.current || !window.google?.maps) return;
+    // Answers with what it found (null when the search itself failed), so the phone's
+    // sheet can say "12 leads", "none" or "couldn't search" without reading state back.
+    const searchLeads = useCallback(async (queryText: string, area: SelectionShape | null = null): Promise<Lead[] | null> => {
+        if (!mapRef.current || !window.google?.maps) return null;
         const bounds = area ? shapeBounds(area) : mapRef.current.getBounds();
         if (!bounds) {
             setLeadError('The map is still loading — try again in a moment.');
-            return;
+            return null;
         }
 
         setLeadSearching(true);
@@ -68,18 +70,23 @@ export function useLeadSearch({ mapRef, currentUser, setLeadInfo, closeLeadInfo,
                 coordinates: { lat: p.location!.lat(), lng: p.location!.lng() },
                 addressParts: parseAddressComponents(p.addressComponents as Parameters<typeof parseAddressComponents>[0])
             }));
-            setLeadResults(area ? leadsInShape(found, area) : found);
+            const kept = area ? leadsInShape(found, area) : found;
+            setLeadResults(kept);
             setLeadInfo(null);
             setRecentLeadSearches(saveRecentLeadSearch(queryText));
+            return kept;
         } catch (err) {
             setLeadError((err as Error).message || 'Could not search this area');
+            return null;
         } finally {
             setLeadSearching(false);
         }
     }, [mapRef, setLeadInfo]);
 
-    const saveLead = async (place: Lead) => {
-        if (savingLead) return;
+    // `keepInResults`: the phone's list keeps a saved lead, marked Saved, instead of dropping it.
+    // Answers whether it was saved.
+    const saveLead = async (place: Lead, options: { keepInResults?: boolean } = {}): Promise<boolean> => {
+        if (savingLead) return false;
         setSavingLead(true);
         setLeadError('');
         try {
@@ -104,17 +111,20 @@ export function useLeadSearch({ mapRef, currentUser, setLeadInfo, closeLeadInfo,
             });
             const body = await res.json();
             if (!res.ok) throw new Error(body.message || 'Could not save this lead');
-            setLeadResults(prev => prev.filter(p => p.placeId !== place.placeId));
+            if (!options.keepInResults) setLeadResults(prev => prev.filter(p => p.placeId !== place.placeId));
             closeLeadInfo();
             await reload();
+            return true;
         } catch (err) {
             setLeadError((err as Error).message || 'Could not save this lead');
+            return false;
         } finally {
             setSavingLead(false);
         }
     };
 
     const removeRecent = (term: string) => setRecentLeadSearches(removeRecentLeadSearch(term));
+    const clearLeadResults = useCallback(() => { setLeadResults([]); setLeadError(''); }, []);
 
-    return { leadQuery, setLeadQuery, leadResults, leadSearching, leadError, savingLead, recentLeadSearches, searchLeads, saveLead, removeRecent };
+    return { leadQuery, setLeadQuery, leadResults, leadSearching, leadError, savingLead, recentLeadSearches, searchLeads, saveLead, removeRecent, clearLeadResults };
 }

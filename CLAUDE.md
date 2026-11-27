@@ -1266,6 +1266,23 @@ hook per job (`useSavedFilters`, `useMapPins`, `usePanels`, `useDayPlan`,
 `useScheduleData` / `useScheduleActions`…), and `map/`, `rail/`, `panels/`,
 `customer/` for its parts.
 
+## Route Planner on a phone: Find new leads (2026-11-27, on `feat/leads-phone`)
+
+Design: claude.ai artifact **Find new leads on a phone** (https://claude.ai/artifact/4cQPkTME848RD4sULAAdQC;
+8 screens, the owner approved it 2026-11-27). The phone bar's ⋯ → **Find new leads** no longer opens an input inside the
+menu (the keyboard covered it): it opens `src/features/routePlanner/leadsPhone/` — `LeadsPhone.tsx` is a search bar fixed to
+the **top** of the screen (16px, Enter says Search), recent searches while it has focus, and a bottom sheet (peek → pull up
+for the list) of results; `useLeadsPhone.ts` holds its state over the page's one lead search (`useLeadSearch`, which now
+answers with what it found and can keep a saved lead on the list), rules in `leadsPhoneRules.ts` (tested). Results are
+numbered nearest the map's centre first, and the pins wear the same numbers (`numberedLeadIcon`, `MapCanvas`'s `leadPins`).
+A lead's row: Call, **+** (saves it as a New Lead, same as the Tools panel's list) — a saved lead stays on the list as
+**Saved** and its pin goes (the new customer pin replaces it). Tapping a row or pin opens the lead's card (Call, Directions in
+Google Maps, Save as lead). A map wider than zoom 11 (`MIN_LEAD_ZOOM`) is not searched: the sheet says Zoom in (to 13).
+After a pan or zoom a **Search this area** pill re-runs the search. Nothing found / a failed search have their own sheet.
+Desktop and tablet keep `LeadSearchControl` and the Tools panel's Leads tab. **Never tried on a real iPhone** — check the
+keyboard with the bar, the sheet's handle drag and the pill; Directions here is plain Google Maps, not the planner's
+"Open in" choice.
+
 ## Cart ticks are instant (2026-10-18)
 
 An inventory checkbox shows the slab in the cart the moment it is clicked

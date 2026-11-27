@@ -9,6 +9,8 @@ import FilterButton from './rail/FilterButton';
 import LeadSearchControl from './rail/LeadSearchControl';
 import RunDrawer from './rail/RunDrawer';
 import MoreMenu from './rail/MoreMenu';
+import LeadsPhone from './leadsPhone/LeadsPhone';
+import { useLeadsPhone } from './leadsPhone/useLeadsPhone';
 import AddCustomerModalJs from '../customers/form/AddCustomerModal';
 import { toCustomerOptions } from '../../utils/customerOptions';
 import { canEditCustomers, canDeleteCustomers } from '../../utils/customerAccess';
@@ -106,6 +108,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     const schedule = useScheduleData();
     const actions = useScheduleActions({ schedule, date: plan.date, replaceExisting: plan.replaceExisting, canReplace: can.replace, setError });
     const leads = useLeadSearch({ mapRef, currentUser, setLeadInfo: panels.setLeadInfo, closeLeadInfo: panels.closeLeadInfo, reload: pinsData.load });
+    const leadsPhone = useLeadsPhone({ mapRef, leads });
     const edit = useCustomerEdit({ setPins: pinsData.setPins, setInfo: panels.setInfo, setReturnPanel: panels.setReturnPanel, reload: pinsData.load, setError });
 
     // This component stays mounted behind display:none when you navigate
@@ -159,12 +162,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // only exist as separate icons on the desktop rail.
     const moreControl = isLoaded && !loadError ? (
         <MoreMenu
-            leadQuery={leads.leadQuery}
-            onLeadQueryChange={leads.setLeadQuery}
-            onLeadSearch={leads.searchLeads}
-            leadSearching={leads.leadSearching}
-            recentLeads={leads.recentLeadSearches}
-            onRemoveRecent={leads.removeRecent}
+            onFindLeads={() => { panels.closeLeadInfo(); leadsPhone.begin(); }}
             showTraffic={showTraffic}
             onToggleTraffic={() => setShowTraffic(v => !v)}
         />
@@ -227,7 +225,8 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
                 onSelectPin={panels.showDetails}
                 leadResults={leads.leadResults}
                 leadInfo={panels.leadInfo}
-                onSelectLead={panels.showLeadDetails}
+                onSelectLead={leadsPhone.open ? (place) => leadsPhone.selectLead(place.placeId) : panels.showLeadDetails}
+                leadPins={leadsPhone.open ? leadsPhone.pins : undefined}
                 onCloseLeadInfo={panels.closeLeadInfo}
                 leadSearch={{
                     query: leads.leadQuery,
@@ -277,7 +276,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
                 onSaveLead={leads.saveLead}
                 savingLead={leads.savingLead}
                 canSaveLead={can.manageCustomers}
-                leadError={leads.leadError}
+                leadError={leadsPhone.open ? '' : leads.leadError}
                 can={can}
                 saving={actions.saving}
                 loading={pinsData.loading}
@@ -357,6 +356,22 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
                     saving={actions.saving}
                     onClose={() => setScheduleSheet(null)}
                     onSave={actions.saveVisitSlot}
+                />
+            )}
+
+            {/* The phone's Find new leads: portaled to the body, so it is drawn only while this tab
+                is the one on screen (this page stays mounted behind the others). */}
+            {leadsPhone.open && isActive && (
+                <LeadsPhone
+                    phone={leadsPhone}
+                    query={leads.leadQuery}
+                    onQueryChange={leads.setLeadQuery}
+                    recent={leads.recentLeadSearches}
+                    onRemoveRecent={leads.removeRecent}
+                    searching={leads.leadSearching}
+                    saving={leads.savingLead}
+                    canSave={can.manageCustomers}
+                    error={leads.leadError}
                 />
             )}
 

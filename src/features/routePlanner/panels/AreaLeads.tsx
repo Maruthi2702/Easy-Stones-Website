@@ -7,7 +7,7 @@ import type { Lead, SelectionShape } from '../types';
 export type AreaLeadSearch = {
     query: string;
     onQueryChange: (value: string) => void;
-    onSearch: (query: string, area?: SelectionShape | null) => Promise<void> | void;
+    onSearch: (query: string, area?: SelectionShape | null) => Promise<unknown> | void;
     searching: boolean;
     recent: string[];
     onRemoveRecent: (term: string) => void;
