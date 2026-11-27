@@ -6,6 +6,15 @@ Bundle ID `app.easysurfaces`, name **Easy Surfaces**, version 1.0.0, **iOS build
 using it on a real iPhone since 2026-11-26 (reports everything works). Rewritten 2026-11-26. Check each item against Apple's
 current rules when you reach it. **Owner steps are marked ▶.**
 
+## Status
+**Submitted for App Review on 2026-11-27** (owner, personal developer account, build 13, United States only, Free). The Demo
+location and its 8 customers are live for the review login. **While it is in review:** don't run `--remove` on the Demo seed, don't
+change the `app.review` login or its password, and keep `https://easystones.onrender.com/privacy` up. **After Apple approves:** run
+`node scripts/seed-app-review-demo.ts --remove --apply` in the Render shell (take the Demo customers and location out), then decide
+what `app.review` should become (switch it off or point it at a branch). **If Apple rejects it:** read the message in App Store
+Connect → App Review; a likely first question is guideline 4.2 (mostly a website) or the background-location wording, answered in
+"Risks to know" below. A fix that is only on the website needs no new build; a change inside `mobile/` needs build 14.
+
 ## Before you submit
 
 1. **The website side is already live** (checked 2026-11-26): the mobile commits (up to build 13, `a4c13bfc`) are on `origin/main` and
