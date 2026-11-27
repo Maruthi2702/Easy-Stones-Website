@@ -28,3 +28,10 @@
 .opt-matches button { width: 100%; text-align: left; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--fm-bd, rgba(128,128,128,.25)); background: transparent; color: var(--fm-tx, inherit); font: inherit; cursor: pointer; display: flex; flex-direction: column; }
 .opt-matches button span { font-size: .78rem; color: var(--fm-mut, inherit); }
 .opt-matches button:hover { border-color: var(--fm-gold, #e5c04a); }
+
+.opt-quick-add { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 10px; }
+.opt-quick-add span { font-size: .78rem; color: var(--fm-mut, inherit); flex: 1 1 200px; }
+.opt-row--quick { border-style: dashed; }
+.opt-quick-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: .68rem; font-weight: 600; border: 1px solid var(--fm-bd2, rgba(128,128,128,.35)); color: var(--fm-mut, inherit); vertical-align: middle; }
+.opt-quick-x { flex: none; width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--fm-mut, inherit); cursor: pointer; }
+.opt-quick-x:hover { background: var(--fm-bd, rgba(128,128,128,.2)); }

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Navigation, Lock, MapPinOff } from 'lucide-react';
+import { Navigation, Lock, MapPinOff, Plus, X } from 'lucide-react';
 import FormModal from '../../../components/shared/form/FormModal';
 import { FormField, FormPicker } from '../../../components/shared/form/FormControls';
 import { useJsApiLoader } from '@react-google-maps/api';
 import { authFetch } from '../../../api/authFetch';
 import { API_URL } from '../../../config/api';
 import { timeOptions, timeText } from '../../../utils/visitSlots';
-import { DAY_START_HOUR, planDayRoute, type DayStop, type LatLng, type RouteMode } from '../../../utils/routeDay';
+import { DAY_START_HOUR, QUICK_STOP_LIMIT, newQuickStopId, planDayRoute, quickDayStops, realChanges, type DayStop, type LatLng, type QuickStop, type RouteMode } from '../../../utils/routeDay';
 import { DEFAULT_VISIT_MINUTES } from '../../../utils/scheduleRecord';
 import { forgetLocationOk, readLastPosition, rememberPosition } from '../../../utils/geolocationAccess';
 import { moveActivity } from '../salesPlannerApi';
@@ -30,6 +30,7 @@ const pointOf = (item: PlannerItem): LatLng | null => {
 
 const TIMES = timeOptions();
 const ADD = '__add__';
+const QUICK_LENGTHS = [15, 30, 45, 60, 90].map((m) => ({ value: String(m), label: durationText(m) }));
 const LENGTHS = [
     { value: 'keep', label: "Each stop's own length" },
     ...[15, 30, 45].map((m) => ({ value: String(m), label: durationText(m) }))
@@ -82,9 +83,14 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
     const byId = useMemo(() => new Map(items.map((i) => [String(i._id), i])), [items]);
     // How long each stop takes: one length for all (15 min by default), or each stop's own length.
     const [length, setLength] = useState('15');
-    const stops = useMemo(() => items.map(toStop).map((s) => (
+    const realStops = useMemo(() => items.map(toStop).map((s) => (
         length === 'keep' ? s : { ...s, wasMinutes: s.minutes, minutes: Number(length), hasEnd: true }
     )), [items, length]);
+    // Quick stops: places that aren't customers (lunch, fuel…). They shape the drive and hold their time, and are not saved.
+    const [quick, setQuick] = useState<QuickStop[]>([]);
+    const [quickMinutes, setQuickMinutes] = useState('30');
+    const stops = useMemo(() => [...realStops, ...quickDayStops(quick, realStops)], [realStops, quick]);
+    const quickById = useMemo(() => new Map(quick.map((q) => [q.id, q])), [quick]);
     // When the day starts: 8:00, or the next quarter hour when it is today and later than that.
     const dayMs = stops[0]?.start;
     const [startTime, setStartTime] = useState(() => {
@@ -119,7 +125,7 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
     }, []);
     // Places the rep typed before (home, a hotel…), on this device; "Another address…" adds one.
     const [places, setPlaces] = useState<SavedPlace[]>(() => readPlaces());
-    const [adding, setAdding] = useState<'from' | 'to' | null>(null);
+    const [adding, setAdding] = useState<'from' | 'to' | 'stop' | null>(null);
     const [addressText, setAddressText] = useState('');
     const [labelText, setLabelText] = useState('');
     const [finding, setFinding] = useState(false);
@@ -213,6 +219,11 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
     };
     const choosePlace = (m: { name: string; address: string; lat: number; lng: number }) => {
         const label = labelText.trim() || m.name || m.address.split(',').slice(0, 2).join(',');
+        if (adding === 'stop') {
+            setQuick((list) => [...list, { id: newQuickStopId(), label, address: m.address, point: { lat: m.lat, lng: m.lng }, minutes: Number(quickMinutes) }]);
+            setAdding(null); setAddressText(''); setLabelText(''); setMatches([]);
+            return;
+        }
         const next = savePlace({ label, address: m.address, lat: m.lat, lng: m.lng });
         setPlaces(next);
         (adding === 'from' ? setFrom : setTo)(next[0].id);
@@ -223,6 +234,8 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
         () => planDayRoute(stops, { origin: startPoint, end: endPoint, mode, fixedIds: [...fixed], startAt }),
         [stops, startPoint, endPoint, mode, fixed, startAt]
     );
+    // A quick stop moving is nothing to save: only the real stops' changes count.
+    const nothingToSave = realChanges(plan).length === 0;
     const saved = Math.max(0, Math.round((plan.milesBefore - plan.milesAfter) * 10) / 10);
 
     const toggle = (id: string) => setFixed((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
@@ -248,7 +261,7 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
     };
 
     const apply = async () => {
-        const changes = plan.stops.filter((s) => s.changed).map((s) => ({ id: s.id, patch: s.patch }));
+        const changes = realChanges(plan).map((s) => ({ id: s.id, patch: s.patch }));
         if (!changes.length) { onClose(); return; }
         setSaving(true); setError('');
         const before = changes.map((c) => { const i = byId.get(c.id)!; return { id: c.id, startTime: i.startTime, ...(i.endTime ? { endTime: i.endTime } : {}) }; });
@@ -289,10 +302,10 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
             size="m"
             onClose={onClose}
             onSubmit={(e) => { e.preventDefault(); apply(); }}
-            submitLabel={plan.unchanged ? 'Already the best order' : 'Apply this order'}
+            submitLabel={nothingToSave ? 'Already the best order' : 'Apply this order'}
             savingLabel="Applying…"
             saving={saving}
-            submitDisabled={plan.unchanged || (from === 'here' && state === 'locating')}
+            submitDisabled={nothingToSave || (from === 'here' && state === 'locating')}
         >
             <div className="opt-modes" role="radiogroup" aria-label="How to order the day">
                 <button type="button" role="radio" aria-checked={mode === 'all'} className={`opt-mode${mode === 'all' ? ' is-on' : ''}`} onClick={() => setMode('all')}>
@@ -321,7 +334,7 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
             </div>
             {adding && (
                 <div className="opt-add">
-                    <FormField name="addr" id="opt-addr" label={adding === 'from' ? 'Start address' : 'Finish address'}>
+                    <FormField name="addr" id="opt-addr" label={adding === 'from' ? 'Start address' : adding === 'to' ? 'Finish address' : 'Stop address'}>
                         <input id="opt-addr" className="fm-input no-capitalize" value={addressText} onChange={(e) => { setAddressText(e.target.value); setMatches([]); }}
                             placeholder="Street, city, state — or a hotel's name and city" autoFocus
                             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (addressText.trim().length >= 4 && !finding && mapsReady) findAddress(); } }} />
@@ -340,6 +353,11 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
                     <FormField name="lbl" id="opt-lbl" label="Name it (optional)">
                         <input id="opt-lbl" className="fm-input" onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }} value={labelText} onChange={(e) => setLabelText(e.target.value)} placeholder="Home, Hotel…" />
                     </FormField>
+                    {adding === 'stop' && (
+                        <FormField name="qmin" id="opt-qmin" label="Time there">
+                            <FormPicker id="opt-qmin" value={quickMinutes} onChange={setQuickMinutes} options={QUICK_LENGTHS} sheetTitle="Time there" keepInForm />
+                        </FormField>
+                    )}
                     <div className="opt-add-actions">
                         <button type="button" className="btn-secondary" onClick={() => setAdding(null)}>Cancel</button>
                         <button type="button" className="btn-primary" onClick={findAddress} disabled={finding || !mapsReady || addressText.trim().length < 4}>{finding ? 'Finding…' : 'Find'}</button>
@@ -361,8 +379,33 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
             )}
             {from === 'here' && <p className="opt-note"><Navigation size={14} aria-hidden="true" /> {startNote}</p>}
 
+            {!adding && quick.length < QUICK_STOP_LIMIT && (
+                <div className="opt-quick-add">
+                    <button type="button" className="btn-secondary" onClick={() => { setAdding('stop'); setFindError(''); }}>
+                        <Plus size={14} aria-hidden="true" /> Add a quick stop
+                    </button>
+                    <span>Lunch, fuel, a place that isn't a customer. It holds time in the order; it isn't saved to the calendar.</span>
+                </div>
+            )}
+
             <ol className="opt-list">
                 {plan.stops.map((s, i) => {
+                    const q = quickById.get(s.id);
+                    if (q) {
+                        return (
+                            <li key={s.id} className="opt-row opt-row--quick">
+                                <span className="opt-n">{i + 1}</span>
+                                <div className="opt-main">
+                                    <div className="opt-name">{q.label} <span className="opt-quick-tag">Quick stop</span></div>
+                                    <div className="opt-sub">
+                                        {`${s.driveMinutes > 0 ? `${s.miles} mi · ${s.driveMinutes} min drive` : 'First stop'} · ${durationText(q.minutes)}`}
+                                    </div>
+                                </div>
+                                <div className="opt-time"><div>{timeLabel(s.start)}</div></div>
+                                <button type="button" className="opt-quick-x" aria-label={`Remove ${q.label}`} onClick={() => setQuick((list) => list.filter((x) => x.id !== q.id))}><X size={14} aria-hidden="true" /></button>
+                            </li>
+                        );
+                    }
                     const item = byId.get(s.id)!;
                     const was = new Date(item.startTime);
                     return (

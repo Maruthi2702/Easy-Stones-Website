@@ -4,6 +4,7 @@ import { CalendarDays, Edit2, Ellipsis, ExternalLink, Info, Navigation, Trash2 }
 import type { PlannerItem } from '../plannerSchedule';
 import { customerName } from '../salesPlanner';
 import { customerIdOfStop, prepareDirections } from '../directions';
+import MapsAppRow from './MapsAppRow';
 
 export type PlannerStopMenuProps = {
     item: PlannerItem;
@@ -94,6 +95,7 @@ export default function PlannerStopMenu({ item, onDirections, onViewDetails, onO
                         onMouseDown={e => e.stopPropagation()}
                     >
                         {onDirections && <button type="button" role="menuitem" className="pl-stopmenu-item pl-stopmenu-item--directions" onClick={() => choose(onDirections)}><Navigation size={15} /> Directions</button>}
+                        {onDirections && <MapsAppRow item={item} onDone={() => setOpen(false)} />}
                         {onViewDetails && <button type="button" role="menuitem" className="pl-stopmenu-item" onClick={() => choose(onViewDetails)}><Info size={15} /> View details</button>}
                         {onOpenCustomer && <button type="button" role="menuitem" className="pl-stopmenu-item" onClick={() => choose(onOpenCustomer)}><ExternalLink size={15} /> Open profile</button>}
                         {hasChange && (onDirections || onViewDetails || onOpenCustomer) && <div className="pl-stopmenu-sep" role="separator" />}
