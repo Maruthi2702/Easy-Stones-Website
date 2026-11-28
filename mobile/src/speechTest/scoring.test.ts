@@ -1,13 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { compact, keepHeard, normalize, reportText, scoreAttempt, summarize, termResult, wordErrorRate } from './scoring';
+import { addResult, compact, emptyHeard, heardText, normalize, reportText, scoreAttempt, summarize, termResult, wordErrorRate } from './scoring';
 import { HINT_PHRASES, SENTENCES } from './script';
 
 describe('speech test scoring', () => {
   it('an empty closing report never erases what was heard', () => {
-    expect(keepHeard('dropped samples', '')).toBe('dropped samples');
-    expect(keepHeard('dropped samples', undefined)).toBe('dropped samples');
-    expect(keepHeard('dropped samples', '   ')).toBe('dropped samples');
-    expect(keepHeard('dropped', 'dropped samples')).toBe('dropped samples');
+    let h = addResult(emptyHeard, 'dropped samples', false);
+    h = addResult(h, '', true);
+    h = addResult(h, undefined, true);
+    h = addResult(h, '   ', false);
+    expect(heardText(h)).toBe('dropped samples');
+  });
+
+  it('a pause starts a new chunk and the earlier chunks stay (the "text gets replaced" bug)', () => {
+    let h = emptyHeard;
+    h = addResult(h, 'Dropped samples', false);
+    h = addResult(h, 'Dropped samples of Calacatta', false); // a live revision replaces only the chunk being spoken
+    h = addResult(h, 'Dropped samples of Calacatta', true);  // the pause: that chunk is finished
+    h = addResult(h, ' and Statuario', false);                // the next chunk starts again from nothing
+    expect(heardText(h)).toBe('Dropped samples of Calacatta and Statuario');
+    h = addResult(h, ' and Statuario Opus', true);
+    h = addResult(h, ' follow up Friday', true);
+    expect(heardText(h)).toBe('Dropped samples of Calacatta and Statuario Opus follow up Friday');
   });
 
   it('normalizes punctuation and case', () => {

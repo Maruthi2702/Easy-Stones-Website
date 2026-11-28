@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
-import { type Attempt, keepHeard, reportText, scoreAttempt, summarize } from './scoring';
+import { type Attempt, type HeardState, addResult, emptyHeard, heardText, reportText, scoreAttempt, summarize } from './scoring';
 import { HINT_PHRASES, SENTENCES } from './script';
 
 /**
@@ -28,6 +28,7 @@ export default function SpeechTestScreen({ onClose }: { onClose: () => void }) {
   const config = `${hints ? 'hints' : 'no hints'} · ${effectiveOnDevice ? 'on-device' : 'Apple servers'}`;
 
   // The handlers below run from the recognizer's events, so what they read lives in refs (a closure would be out of date).
+  const heardState = useRef<HeardState>(emptyHeard);
   const heardRef = useRef('');
   const stoppedAt = useRef(0);
   const settledAt = useRef(0);
@@ -35,8 +36,10 @@ export default function SpeechTestScreen({ onClose }: { onClose: () => void }) {
   live.current = { sentence, config };
 
   useSpeechRecognitionEvent('result', (e) => {
-    const text = keepHeard(heardRef.current, e.results?.[0]?.transcript);
-    if (text === heardRef.current) return; // an empty closing report, or nothing new: keep what was heard
+    const next = addResult(heardState.current, e.results?.[0]?.transcript, e.isFinal);
+    if (next === heardState.current) return; // an empty report (the closing one has no words): keep what was heard
+    heardState.current = next;
+    const text = heardText(next);
     heardRef.current = text;
     setHeard(text);
     if (stoppedAt.current) settledAt.current = Date.now();
@@ -59,7 +62,7 @@ export default function SpeechTestScreen({ onClose }: { onClose: () => void }) {
     setProblem('');
     const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
     if (!perm.granted) { setProblem('Microphone or speech recognition is off for this app. Turn both on in Settings → Easy Surfaces.'); return; }
-    heardRef.current = ''; stoppedAt.current = 0; settledAt.current = 0;
+    heardState.current = emptyHeard; heardRef.current = ''; stoppedAt.current = 0; settledAt.current = 0;
     setHeard('');
     setPhase('listening');
     ExpoSpeechRecognitionModule.start({
