@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { leadLine, leadsHeading, mapMoved, milesText, MIN_LEAD_ZOOM, orderByDistance, tooFarOut, typeText } from './leadsPhoneRules.ts';
+import { canZoomOut, leadLine, leadsHeading, mapMoved, milesText, MIN_LEAD_ZOOM, orderByDistance, tooFarOut, typeText, zoomOutTarget } from './leadsPhoneRules.ts';
 import type { Lead } from '../types.ts';
 
 const lead = (name: string, lat: number, lng: number, types: string[] = [], city = ''): Lead => ({
@@ -65,5 +65,18 @@ describe('mapMoved', () => {
     it('is true when the zoom changes by a whole step', () => {
         expect(mapMoved({ ...at, zoom: 12 }, at)).toBe(true);
         expect(mapMoved({ ...at, zoom: 13.2 }, at)).toBe(false);
+    });
+});
+
+describe('zooming out', () => {
+    it('goes one step wider and never past the widest search', () => {
+        expect(zoomOutTarget(13)).toBe(12);
+        expect(zoomOutTarget(MIN_LEAD_ZOOM)).toBe(MIN_LEAD_ZOOM);
+        expect(zoomOutTarget(8)).toBe(MIN_LEAD_ZOOM);
+    });
+    it('is offered only while there is room to go wider', () => {
+        expect(canZoomOut(13)).toBe(true);
+        expect(canZoomOut(MIN_LEAD_ZOOM)).toBe(false);
+        expect(canZoomOut(undefined)).toBe(true);
     });
 });

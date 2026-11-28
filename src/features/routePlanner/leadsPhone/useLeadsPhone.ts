@@ -3,7 +3,7 @@ import type { MutableRefObject } from 'react';
 import { milesBetween } from '../../../utils/routePlan';
 import type { useLeadSearch } from '../useLeadSearch';
 import type { LatLng, Lead } from '../types';
-import { mapMoved, orderByDistance, tooFarOut, ZOOM_IN_TO } from './leadsPhoneRules';
+import { canZoomOut, mapMoved, orderByDistance, tooFarOut, zoomOutTarget, ZOOM_IN_TO } from './leadsPhoneRules';
 import type { MapView, NumberedLead } from './leadsPhoneRules';
 
 /** What the sheet is saying: nothing yet, the leads, none found, the map is too wide, or the search failed. */
@@ -29,6 +29,24 @@ const viewOf = (map: google.maps.Map): MapView | null => {
     return { center, zoom, widthMiles };
 };
 
+/** The longest a zoom is waited for before the search runs anyway. */
+const ZOOM_WAIT_MS = 1500;
+
+/**
+ * Sets the zoom and answers once the map has really arrived: the map's next "idle" can be one that
+ * was already on its way, with the old zoom and bounds, so it keeps listening until the zoom
+ * matches (or gives up after a moment and lets the search run on whatever is showing).
+ */
+const settleZoom = (map: google.maps.Map, target: number): Promise<void> => new Promise((resolve) => {
+    if (Math.round(map.getZoom?.() ?? NaN) === target) { resolve(); return; }
+    let done = false;
+    let listener: google.maps.MapsEventListener | undefined;
+    const finish = () => { if (done) return; done = true; listener?.remove?.(); clearTimeout(timer); resolve(); };
+    const timer = setTimeout(finish, ZOOM_WAIT_MS);
+    listener = map.addListener?.('idle', () => { if (Math.round(map.getZoom?.() ?? NaN) === target) finish(); });
+    map.setZoom(target);
+});
+
 /**
  * The phone's "Find new leads" (Route Planner → ⋯ → Find new leads): a search bar at the top
  * of the screen and a sheet of results at the bottom, instead of an input inside the menu where
@@ -46,6 +64,7 @@ export function useLeadsPhone({ mapRef, leads }: { mapRef: MutableRefObject<goog
     const [expanded, setExpanded] = useState(false);
     const [searchedAt, setSearchedAt] = useState<MapView | null>(null);
     const [zoomedOut, setZoomedOut] = useState(false);
+    const [zoomOutOk, setZoomOutOk] = useState(true);
     const [moved, setMoved] = useState(false);
     // A later search wins: an answer for an older one is dropped.
     const seq = useRef(0);
@@ -58,6 +77,7 @@ export function useLeadsPhone({ mapRef, leads }: { mapRef: MutableRefObject<goog
             const view = viewOf(map);
             if (!view) return;
             setZoomedOut(tooFarOut(view.zoom));
+        setZoomOutOk(canZoomOut(view.zoom));
             setMoved(searchedAt ? mapMoved(view, searchedAt) : false);
         };
         check();
@@ -86,19 +106,19 @@ export function useLeadsPhone({ mapRef, leads }: { mapRef: MutableRefObject<goog
         setPhase(found.length ? 'results' : 'empty');
     }, [leads, mapRef]);
 
-    // Zoom the map, then run the search once it has settled.
-    const zoomThenSearch = useCallback((zoom: number) => {
+    // Zoom the map, wait until it has really got there, then search what it shows.
+    const zoomThenSearch = useCallback(async (zoomFor: (current: number) => number) => {
         const map = mapRef.current;
         const q = leads.leadQuery.trim();
-        if (!map) return;
-        map.setZoom(zoom);
-        if (q && window.google?.maps?.event?.addListenerOnce) {
-            window.google.maps.event.addListenerOnce(map, 'idle', () => { void run(q); });
-        }
+        if (!map || !q) return;
+        const mine = ++seq.current;
+        await settleZoom(map, zoomFor(map.getZoom?.() ?? ZOOM_IN_TO));
+        if (mine !== seq.current) return;
+        void run(q);
     }, [leads.leadQuery, mapRef, run]);
 
-    const zoomIn = useCallback(() => zoomThenSearch(ZOOM_IN_TO), [zoomThenSearch]);
-    const zoomOut = useCallback(() => zoomThenSearch(Math.max(1, (mapRef.current?.getZoom?.() ?? ZOOM_IN_TO) - 1)), [zoomThenSearch, mapRef]);
+    const zoomIn = useCallback(() => zoomThenSearch(() => ZOOM_IN_TO), [zoomThenSearch]);
+    const zoomOut = useCallback(() => zoomThenSearch(zoomOutTarget), [zoomThenSearch]);
 
     const selectLead = useCallback((placeId: string) => {
         const row = results.find((r) => r.lead.placeId === placeId);
@@ -149,7 +169,7 @@ export function useLeadsPhone({ mapRef, leads }: { mapRef: MutableRefObject<goog
     const selected = useMemo(() => results.find((r) => r.lead.placeId === selectedId) ?? null, [results, selectedId]);
 
     return {
-        open, phase, results, selected, savedIds, expanded, setExpanded, moved, zoomedOut, pins,
+        open, phase, results, selected, savedIds, expanded, setExpanded, moved, zoomedOut, canZoomOut: zoomOutOk, pins,
         begin, close, run, zoomIn, zoomOut, selectLead, backToList, save
     };
 }

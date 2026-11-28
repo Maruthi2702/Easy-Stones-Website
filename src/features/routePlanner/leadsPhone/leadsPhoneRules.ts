@@ -9,6 +9,11 @@ export const MIN_LEAD_ZOOM = 11;
 /** What the Zoom in button zooms to: a few miles across on a phone. */
 export const ZOOM_IN_TO = 13;
 
+/** One step wider for "Zoom out and search again", never past what a search allows. */
+export const zoomOutTarget = (zoom: number): number => Math.max(MIN_LEAD_ZOOM, Math.round(zoom) - 1);
+/** False once the map is as wide as a search goes: zooming out further would only ask to zoom back in. */
+export const canZoomOut = (zoom: number | null | undefined): boolean => typeof zoom !== 'number' || Math.round(zoom) > MIN_LEAD_ZOOM;
+
 export const tooFarOut = (zoom: number | null | undefined): boolean => typeof zoom === 'number' && zoom < MIN_LEAD_ZOOM;
 
 export type NumberedLead = { lead: Lead; n: number; miles: number };

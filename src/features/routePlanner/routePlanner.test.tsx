@@ -271,6 +271,41 @@ describe('Route Planner: Find new leads on a phone', () => {
     expect(searches.length).toBe(0);
   });
 
+  it('Zoom in waits until the map has really zoomed, then searches what it shows', async () => {
+    placesAnswer = [place('p1', 'Near Stone', 47.601, -122.3)];
+    await openLeads();
+    let zoom = 8;
+    gm.map.getCenter = () => ({ lat: () => 47.6, lng: () => -122.3 });
+    gm.map.getZoom = () => zoom;
+    // The map takes a moment to arrive, and an idle that was already on its way fires first at the old zoom.
+    gm.map.setZoom = (z: number) => { setTimeout(() => { zoom = z; gm.map.listeners.idle?.slice().forEach((fn: () => void) => fn()); }, 30); };
+    await searchFor('countertops');
+    expect(screen.getByText('Zoom in to find leads')).toBeTruthy();
+    fireEvent.click(screen.getByText('Zoom in'));
+    await settle();
+    expect(zoom).toBe(13);
+    expect(searches.length).toBe(1);
+    expect(screen.getByText('1 lead')).toBeTruthy();
+  });
+
+  it('offers Zoom out only while the map can still go wider, and never past the widest search', async () => {
+    await openLeads();
+    let zoom = 13;
+    gm.map.getCenter = () => ({ lat: () => 47.6, lng: () => -122.3 });
+    gm.map.getZoom = () => zoom;
+    gm.map.setZoom = (z: number) => { setTimeout(() => { zoom = z; gm.map.listeners.idle?.slice().forEach((fn: () => void) => fn()); }, 0); };
+    await searchFor('countertops');
+    fireEvent.click(screen.getByText('Zoom out and search again'));
+    await settle();
+    expect(zoom).toBe(12);
+    expect(searches.length).toBe(2);
+    fireEvent.click(screen.getByText('Zoom out and search again'));
+    await settle();
+    expect(zoom).toBe(11);
+    expect(screen.queryByText('Zoom out and search again')).toBeNull();
+    expect(screen.queryByText('Zoom in to find leads')).toBeNull();
+  });
+
   it('✕ closes it and takes the pins off the map', async () => {
     placesAnswer = [place('p1', 'Near Stone', 47.601, -122.3)];
     await openLeads();

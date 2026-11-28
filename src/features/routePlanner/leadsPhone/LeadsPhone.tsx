@@ -160,11 +160,11 @@ const LeadsPhone = ({ phone, query, onQueryChange, recent, onRemoveRecent, searc
             sheet = selected ? cardSheet : listSheet;
             if (!selected) sheetClass += expanded ? ' is-full' : ' is-peek';
         } else if (phase === 'empty') {
-            sheet = message(<Search size={24} aria-hidden="true" />, 'grey', `No “${query.trim()}” found here`, 'Nothing matched in this part of the map. Try another word, or zoom out a little.', (
+            sheet = message(<Search size={24} aria-hidden="true" />, 'grey', `No “${query.trim()}” found here`, phone.canZoomOut ? 'Nothing matched in this part of the map. Try another word, or zoom out a little.' : 'Nothing matched in this part of the map, which is as wide as a search goes. Try another word, or move the map.', (
                 <>
                     <div className="lp-lab">Try instead</div>
                     <div className="lp-chips">{tryInstead.map((t) => <button key={t} type="button" className="lp-chip" onClick={() => phone.run(t)}>{t}</button>)}</div>
-                    <button type="button" className="lp-btn lp-btn--gold" onClick={phone.zoomOut}>Zoom out and search again</button>
+                    {phone.canZoomOut && <button type="button" className="lp-btn lp-btn--gold" onClick={phone.zoomOut}>Zoom out and search again</button>}
                 </>
             ));
         } else if (phase === 'zoom') {
