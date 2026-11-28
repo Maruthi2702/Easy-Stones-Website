@@ -9,6 +9,7 @@ import type { VisitDetails } from './VisitViewModal';
 import { visitDetailRows } from './visitDetailRows';
 import { useVisitLocations } from '../../../api/visitLocations';
 import { LocationChip } from '../../location';
+import { VoiceChip } from '../../voiceAssistant';
 import type { Loose } from '../../../types/records';
 import './DashboardFocus.css';
 
@@ -121,6 +122,7 @@ const VisitsFocusList = ({ visits = EMPTY_VISITS, loading = false, busyVisitId =
                                 </span>
                                 {Boolean(visit._saving) && <span className="dfx-saving" role="status"><Loader size={12} className="animate-spin" aria-hidden="true" />Saving…</span>}
                                 <LocationChip location={locations[String(visit._id)]} />
+                                <VoiceChip byVoice={visit.byVoice} />
                                 {Boolean(by) && <span className="dfx-pill dfx-pill--rep" title={`Logged by ${by}`}><User size={11} aria-hidden="true" />{by}</span>}
                                 {Boolean(visit.location) && <span className="dfx-pill"><MapPin size={11} aria-hidden="true" />{visit.location as string}</span>}
                                 <button

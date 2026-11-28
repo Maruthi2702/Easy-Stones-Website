@@ -8,6 +8,7 @@ import { splitCustomer } from '../../../components/sales/visitsListHelpers';
 import { visitDetailRows } from './visitDetailRows';
 import type { Loose } from '../../../types/records';
 import { LocationDetails } from '../../location';
+import { VoiceChip } from '../../voiceAssistant';
 import type { LoggedFrom } from '../../../utils/visitLocation';
 import './DashboardFocus.css';
 
@@ -95,6 +96,7 @@ const VisitViewModal = ({ visit, details, onClose, onOpenCustomer, onEdit, onDel
                             </div>
                         )}
                         <span className="dfx-visit-date">{formatDate(visit.date as string, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                        <VoiceChip byVoice={visit.byVoice} />
                     </div>
                     {Boolean(visit.notes) && <p className="post-text">{visit.notes as string}</p>}
                     {rows.length > 0 && (
