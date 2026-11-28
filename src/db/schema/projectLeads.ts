@@ -99,3 +99,26 @@ export const projectLeadImportBackups = pgTable('project_lead_import_backups', {
   projectId: text('project_id').notNull(),
   previous: jsonb('previous')
 }, t => [primaryKey({ columns: [t.importId, t.projectId] })]);
+
+/**
+ * What staff add to a **company** on the Companies view (2026-11-27): status, who has it, a note, the history.
+ * One row per company across every project it is on, keyed by `companyKey` (the lower-cased ConstructConnect
+ * company id, else its name — the same expression the list groups by). An import never touches it; a company that
+ * has no row here is "New", with nobody and no note. Separate from the project's own status columns, which stay.
+ */
+export const projectLeadCompanyWork = pgTable('project_lead_company_work', {
+  companyKey: text('company_key').primaryKey(),
+  /** The name as last shown, so the row still reads right if the company later leaves every project. */
+  name: text('name').notNull().default(''),
+  status: text('status').notNull().default('new'),
+  assignedTo: text('assigned_to').notNull().default(''),
+  assignedToId: text('assigned_to_id').notNull().default(''),
+  note: text('note').notNull().default(''),
+  statusBy: text('status_by').notNull().default(''),
+  statusAt: moment('status_at'),
+  /** Every change of status or note, and every take or release, newest last: [{ at, by, status, note, event? }]. Never trimmed. */
+  history: jsonb('history').notNull().default(sql`'[]'::jsonb`)
+}, t => [
+  index('project_lead_company_work_status_idx').on(t.status),
+  index('project_lead_company_work_assigned_idx').on(t.assignedTo)
+]);
