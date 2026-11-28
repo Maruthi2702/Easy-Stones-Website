@@ -14,6 +14,8 @@ import usePinnedTabs from '../components/sales/usePinnedTabs';
 import useNavOrder from '../components/sales/useNavOrder';
 import { canAddCustomer } from '../utils/customerAccess';
 import { useVisitEditor } from '../features/visits';
+import { VoiceAssistant } from '../features/voiceAssistant';
+import { USE_VOICE_ASSISTANT } from '../utils/assistantContract';
 import { useResourceEditor } from '../features/resources';
 import { useCustomerActions, useOpenCustomer, useCustomersPage, useCreateCustomer } from '../features/customers';
 import ImageGallery from '../components/shared/ImageGallery';
@@ -460,6 +462,21 @@ const SalesPage = () => {
                 )}
             />
             )}
+
+                {/* Log a visit by talking (src/features/voiceAssistant): a round button above the page's + on the Dashboard / Planner and the
+                    Customers pages. It shows only for a login with Voice assistant, who can add visits, in the app with the Speech plugin; the save
+                    is this page's one visit save, so a visit by voice goes through every rule a typed one does. */}
+                <VoiceAssistant
+                    enabled={!authLoading && !!currentUser?.permissions?.includes(USE_VOICE_ASSISTANT) && canAddVisits && (crmTab === 'dashboard' || crmTab === 'customers')}
+                    placement={crmTab === 'customers' && !selectedCustomerId ? 'list' : 'plus'}
+                    host={{
+                        userId: currentUserId,
+                        saveVisit: visitEditor.handleSaveVisit,
+                        undoVisit: visitEditor.handleUndoVisit,
+                        openForm: visitEditor.handleAddVisitPrefilled,
+                        addCustomer: openNewCustomer ? (company) => { setCustomerPrefill({ company }); setShowAddCustomerModal(true); } : undefined
+                    }}
+                />
 
                 {/* Every pop-up, in its stacking order (src/features/salesShell/SalesModals.tsx). */}
                 <SalesModals

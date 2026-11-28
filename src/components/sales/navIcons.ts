@@ -36,7 +36,7 @@ export const ITEM_ICONS: Readonly<Record<string, LucideIcon>> = {
     receipt_categories: Tags,
     team_location: MapPinned,
     send_notification: BellRing,
-    voice_test: Mic,
+    voice_assistant: Mic,
     supplier_pos: PackageCheck,
     incoming_material: Ship,
     live_inventory: ExternalLink

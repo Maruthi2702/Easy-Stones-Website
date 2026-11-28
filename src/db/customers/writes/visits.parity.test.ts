@@ -131,6 +131,18 @@ describe('add a visit', () => {
     expect(mongo[0]).toMatchObject({ visitId: input.visit._id, resourceId: null, createdBy: String(rep) });
   });
 
+  it('logged by voice is stored and read back the same on both, and a plain visit says nothing', async () => {
+    const voice = addInput({ byVoice: true });
+    const plain = addInput();
+    const { mongo } = await sameThing(async () => {
+      await settle(await data.addVisit(voice));
+      await settle(await data.addVisit(plain));
+      return { voice: await data.savedVisit(acme, voice.visit._id), plain: await data.savedVisit(acme, plain.visit._id) };
+    });
+    expect(mongo.voice).toMatchObject({ byVoice: true });
+    expect(mongo.plain).not.toHaveProperty('byVoice');
+  });
+
   it('completes the logger\'s own planned entry that day instead of adding one', async () => {
     const input = addInput({ date: '2026-11-12', followUp: 'call', followUpDate: '2026-11-20', image: ['https://cdn.example/a.webp', 'https://cdn.example/b.pdf'] });
     const { mongo } = await sameThing(async () => ({

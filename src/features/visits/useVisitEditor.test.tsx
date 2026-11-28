@@ -73,7 +73,7 @@ describe('useVisitEditor', () => {
     const { result } = renderHook(() => useVisitEditor(d));
     act(() => result.current.handleQuickAddVisit());
     // The form closes (and renders) first; the send and its failure come after, as in a browser.
-    let saving: Promise<void> = Promise.resolve();
+    let saving: Promise<unknown> = Promise.resolve();
     act(() => { saving = result.current.handleSaveVisit(filled); });
     await act(async () => { await saving; });
     expect(authFetch).toHaveBeenCalledTimes(1);
@@ -101,7 +101,7 @@ describe('useVisitEditor', () => {
     const d = deps();
     const { result } = renderHook(() => useVisitEditor(d));
     act(() => result.current.handleQuickAddVisit());
-    let upload!: Promise<void>, save!: Promise<void>;
+    let upload!: Promise<void>, save!: Promise<unknown>;
     act(() => { upload = result.current.handleVisitImageUpload(picked(type)); });
     expect(result.current.visitUploading).toBe(true);
     act(() => { save = result.current.handleSaveVisit(filled); });
@@ -152,7 +152,7 @@ describe('useVisitEditor', () => {
     const d = deps();
     const { result } = renderHook(() => useVisitEditor(d));
     act(() => result.current.handleQuickAddVisit());
-    let save!: Promise<void>;
+    let save!: Promise<unknown>;
     act(() => { save = result.current.handleSaveVisit(filled); });
     await act(async () => { await vi.advanceTimersByTimeAsync(1500); await save; });
     expect(result.current.showVisitModal).toBe(true);
@@ -175,7 +175,7 @@ describe('useVisitEditor', () => {
     authFetch.mockImplementation(() => reply(200, { visit: { _id: 'saved' } }));
     const { result } = renderHook(() => useVisitEditor(d));
     act(() => result.current.handleQuickAddVisit());
-    let save!: Promise<void>;
+    let save!: Promise<unknown>;
     act(() => { save = result.current.handleSaveVisit(filled); });
     expect(d.showSaveToast).not.toHaveBeenCalled();
     await act(async () => { await vi.advanceTimersByTimeAsync(1500); await save; });

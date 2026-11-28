@@ -2,3 +2,4 @@
 export { useVisitEditor } from './useVisitEditor';
 export type { VisitEditorDeps } from './useVisitEditor';
 export type { VisitEditor } from './useVisitEditor';
+export type { VisitSaveResult } from './useVisitEditor';

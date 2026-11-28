@@ -116,6 +116,7 @@ export async function loadCustomerRecord(db: Db, id: string): Promise<Loose | nu
     followUpDoneAt: asWritten(v.followUpDoneAt), followUpDoneOn: v.followUpDoneOn ?? undefined,
     followUpDoneBy: v.followUpDoneById ?? undefined, followUpDoneByName: v.followUpDoneByName, followUpOutcome: v.followUpOutcome,
     ...(v.loggedFrom ? { loggedFrom: v.loggedFrom } : {}),
+    ...(v.byVoice ? { byVoice: true } : {}),
     followUpHistory: events.filter(e => e.visitId === v.id).map(e => ({
       action: e.action, at: asWritten(e.at), on: e.onDay ?? undefined, by: e.byId ?? undefined,
       byName: e.byName, from: e.fromDay ?? undefined, to: e.toDay ?? undefined

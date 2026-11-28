@@ -121,7 +121,8 @@ async function visitDoc(tx: Tx, id: string): Promise<Loose | null> {
     updatedBy: v.updatedById ?? v.updatedByCustomerId ?? '',
     updatedByName: v.updatedByName,
     updatedAt: appTime(v.updatedAt) ?? '',
-    ...(v.loggedFrom ? { loggedFrom: v.loggedFrom } : {})
+    ...(v.loggedFrom ? { loggedFrom: v.loggedFrom } : {}),
+    ...(v.byVoice ? { byVoice: true } : {})
   };
   return doc;
 }
@@ -269,7 +270,8 @@ export async function addVisit(db: Db, { customerId, visit, calendar, log, now }
       followUp: text(visit.followUp, 'followUp'), followUpDate: dayOrNull(visit.followUpDate),
       createdById: by.userId, createdByCustomerId: by.customerId, createdByName: text(visit.createdByName, 'createdByName'),
       createdAt: localOf(visit.createdAt) ?? `${date} 00:00:00.000`,
-      loggedFrom: (visit.loggedFrom as Loose | null | undefined) ?? null
+      loggedFrom: (visit.loggedFrom as Loose | null | undefined) ?? null,
+      byVoice: visit.byVoice === true
     }).onConflictDoNothing().returning({ id: visits.id });
     if (!inserted.length) {
       // Two tries racing: the other one saved it.

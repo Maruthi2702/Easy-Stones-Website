@@ -25,6 +25,7 @@ import { canOpenSupplierPos, canSeeIncoming } from './supplierAccess.ts';
 import { canOpenUsersPage } from './teamAccess.ts';
 import { canViewLocationAudit, canViewTeamLocations } from './locationTracking.ts';
 import { canSendNotifications } from './pushSend.ts';
+import { canManageVoiceWords } from './voiceWordsAccess.ts';
 import { canOpenArea, can, NAV_ORDER } from './usersAccess.ts';
 
 type NavUser = Loose | null | undefined;
@@ -122,8 +123,9 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'team_location', label: 'Team Location', section: 'admin', canSee: (u: NavUser) => canViewTeamLocations(u) || canViewLocationAudit(u) },
   // An admin sends a short message to people's iPhones (src/features/notifications/); the `send_notifications` switch is the only key.
   { id: 'send_notification', label: 'Send Notification', section: 'admin', canSee: (u: NavUser) => canSendNotifications(u) },
-  // The way into the app's speech test (src/features/voiceTest/): admins only, a measuring tool for the voice assistant.
-  { id: 'voice_test', label: 'Voice Test', section: 'admin', canSee: (u: NavUser) => isAdmin(u) },
+  // Voice Assistant (src/features/voiceWords/): the voice words, its usage and the speech test (was the admin-only Voice Test page).
+  // `manage_voice_words` or the admin role opens it.
+  { id: 'voice_assistant', label: 'Voice Assistant', section: 'admin', canSee: (u: NavUser) => canManageVoiceWords(u) },
   // The side nav's order for everyone (NavOrderTab.jsx); saving needs the same permission.
   { id: 'nav_order', label: 'Side Nav Order', section: 'admin', canSee: (u: NavUser) => can(u, NAV_ORDER) }
 ];

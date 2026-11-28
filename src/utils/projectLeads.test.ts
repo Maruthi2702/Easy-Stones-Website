@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readConstructConnect, roleGroup, roleLabel, dayOf, phoneDigits, formatPhone, formatValue, orderCompanies, reachable } from './projectLeads.ts';
+import { readConstructConnect, decodeEntities, roleGroup, roleLabel, dayOf, phoneDigits, formatPhone, formatValue, orderCompanies, reachable } from './projectLeads.ts';
 
 const row = (over: Record<string, unknown> = {}) => ({
   'Project Id': '1001689700', 'Project Title': 'Lulac Hacienda Apartments', 'Project Value': '4500000',
@@ -69,6 +69,14 @@ describe('readConstructConnect', () => {
   it('adds units and owner type from the Custom sheet by title and street', () => {
     const r = readConstructConnect([row()], [{ 'Project Title': 'LULAC Hacienda Apartments', 'Street Address': '2625 greenwood dr', Units: '60', 'Owner Type': 'Private' }]);
     expect(r.projects[0]).toMatchObject({ units: 60, ownerType: 'Private' });
+  });
+  it('reads the export\'s HTML-escaped names as typed', () => {
+    expect(decodeEntities('Gorman &amp; Company Inc.')).toBe('Gorman & Company Inc.');
+    expect(decodeEntities('M&amp;P &#39;Co&#x27; &lt;3 &unknown;')).toBe("M&P 'Co' <3 &unknown;");
+    expect(decodeEntities('&amp;amp;')).toBe('&amp;');
+    const [p] = readConstructConnect([row({ 'Project Title': 'Smith &amp; Sons Lofts', 'Company Name': 'M&amp;P Construction Inc' })]).projects;
+    expect(p.title).toBe('Smith & Sons Lofts');
+    expect(p.companies[0].name).toBe('M&P Construction Inc');
   });
   it('skips rows with no project id and refuses a file that is not the export', () => {
     expect(readConstructConnect([row(), row({ 'Project Id': '' })]).skippedRows).toBe(1);

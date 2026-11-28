@@ -15,6 +15,7 @@ import { canOpenReceipts, canOpenCategories } from '../../utils/cardReceipts';
 import { canOpenSupplierPos, canSeeIncoming } from '../../utils/supplierAccess';
 import { canViewTeamLocations } from '../../utils/locationTracking';
 import { canSendNotifications } from '../../utils/pushSend';
+import { canManageVoiceWords } from '../../utils/voiceWordsAccess';
 import { TeamFilesPage } from '../teamFiles';
 import type { TeamFiles } from '../teamFiles';
 import type { Loose } from '../../types/records';
@@ -46,7 +47,7 @@ const CardReceiptsPage = page(() => import('../cardReceipts/CardReceiptsPage'));
 const ReceiptCategoriesPage = page(() => import('../cardReceipts/categories/ReceiptCategoriesPage'));
 const TeamLocationPage = page(() => import('../teamLocation/TeamLocationPage'));
 const SendNotificationPage = page(() => import('../notifications/SendNotificationPage'));
-const VoiceTestPage = page(() => import('../voiceTest/VoiceTestPage'));
+const VoiceAssistantPage = page(() => import('../voiceWords/VoiceAssistantPage'));
 const SupplierPosPage = page(() => import('../suppliers/SupplierPosPage'));
 const IncomingMaterialPage = page(() => import('../suppliers/incoming/IncomingMaterialPage'));
 const FreightTab = page(() => import('../freight/FreightTab'));
@@ -263,10 +264,10 @@ export default function SalesTabViews(p: SalesTabViewsProps) {
                 </ErrorBoundary>
             )}
 
-            {ready && crmTab === 'voice_test' && currentUser?.role === 'admin' && (
-                <ErrorBoundary key="voice-test-view">
+            {ready && crmTab === 'voice_assistant' && canManageVoiceWords(currentUser) && (
+                <ErrorBoundary key="voice-assistant-view">
                     <Suspense fallback={<TabLoader />}>
-                        <VoiceTestPage sidebarToggle={menu()} />
+                        <VoiceAssistantPage currentUser={currentUser} sidebarToggle={menu()} />
                     </Suspense>
                 </ErrorBoundary>
             )}

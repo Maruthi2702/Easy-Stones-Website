@@ -1,7 +1,7 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
+import { expoRecognizer, speechController } from '../speech/expoRecognizer';
 import { type Attempt, reportText, scoreAttempt, summarize } from './scoring';
 import { HINT_PHRASES, SENTENCES } from './script';
 
@@ -22,57 +22,63 @@ export default function SpeechTestScreen({ onClose }: { onClose: () => void }) {
   const [problem, setProblem] = useState('');
   const [attempts, setAttempts] = useState<Attempt[]>([]);
 
-  const onDeviceSupported = useMemo(() => { try { return ExpoSpeechRecognitionModule.supportsOnDeviceRecognition(); } catch { return false; } }, []);
+  const onDeviceSupported = useMemo(() => { try { return expoRecognizer.supportsOnDevice(); } catch { return false; } }, []);
   const effectiveOnDevice = onDevice && onDeviceSupported;
   const sentence = SENTENCES[index];
   const config = `${hints ? 'hints' : 'no hints'} · ${effectiveOnDevice ? 'on-device' : 'Apple servers'}`;
 
-  // The handlers below run from the recognizer's events, so what they read lives in refs (a closure would be out of date).
-  const heardRef = useRef('');
+  // The same listener the voice assistant uses (speech/core.ts): it joins the recognizer's chunks and keeps earlier words. The handlers
+  // below run from its events, so what they read lives in refs (a closure would be out of date).
+  const ctl = speechController();
   const stoppedAt = useRef(0);
   const settledAt = useRef(0);
+  const finishing = useRef(false);
   const live = useRef({ sentence, config });
   live.current = { sentence, config };
 
-  useSpeechRecognitionEvent('result', (e) => {
-    const text = e.results?.[0]?.transcript || '';
-    heardRef.current = text;
-    setHeard(text);
-    if (stoppedAt.current && !settledAt.current) settledAt.current = Date.now();
-  });
-  useSpeechRecognitionEvent('error', (e) => {
-    // "no-speech" and "aborted" are ordinary endings; anything else is worth reading.
-    if (e.error !== 'no-speech' && e.error !== 'aborted') setProblem(`${e.error}: ${e.message}`);
-  });
-  useSpeechRecognitionEvent('end', () => {
+  const finish = async () => {
+    if (finishing.current) return;
+    finishing.current = true;
+    if (!stoppedAt.current) stoppedAt.current = Date.now();
+    const { text } = await ctl.stop();
     const { sentence: s, config: c } = live.current;
     const attempt = scoreAttempt({
-      id: s.id, config: c, expected: s.say, heard: heardRef.current, terms: s.terms,
-      settleMs: stoppedAt.current && settledAt.current ? settledAt.current - stoppedAt.current : undefined
+      id: s.id, config: c, expected: s.say, heard: text, terms: s.terms,
+      settleMs: settledAt.current > stoppedAt.current ? settledAt.current - stoppedAt.current : undefined
     });
+    setHeard(text);
     setAttempts((all) => [...all.filter((a) => !(a.id === s.id && a.config === c)), attempt]);
     setPhase('done');
-  });
+  };
+
+  useEffect(() => {
+    const offPartial = ctl.on('partial', (e) => { setHeard(e.text); if (stoppedAt.current) settledAt.current = Date.now(); });
+    const offError = ctl.on('error', (e) => {
+      // The recognizer ended or the mic timed out on its own: score what was heard. "no-speech" is an ordinary ending.
+      if (e.code === 'ended' || e.code === 'auto-stopped' || e.code === 'no-speech') { void finish(); return; }
+      setProblem(`${e.code}: ${e.message}`);
+      void finish();
+    });
+    return () => { offPartial(); offError(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const start = async () => {
     setProblem('');
-    const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-    if (!perm.granted) { setProblem('Microphone or speech recognition is off for this app. Turn both on in Settings → Easy Surfaces.'); return; }
-    heardRef.current = ''; stoppedAt.current = 0; settledAt.current = 0;
+    stoppedAt.current = 0; settledAt.current = 0; finishing.current = false;
     setHeard('');
     setPhase('listening');
-    ExpoSpeechRecognitionModule.start({
-      lang: 'en-US',
-      interimResults: true,
-      continuous: true,
-      addsPunctuation: false,
-      requiresOnDeviceRecognition: effectiveOnDevice,
-      contextualStrings: hints ? HINT_PHRASES : undefined
-    });
+    try {
+      await ctl.start({ hints: hints ? HINT_PHRASES : [], onDevice: effectiveOnDevice });
+    } catch (e) {
+      setPhase('idle');
+      const code = (e as { code?: string }).code;
+      setProblem(code === 'not-allowed' ? 'Microphone or speech recognition is off for this app. Turn both on in Settings → Easy Surfaces.' : `${code || 'error'}: ${(e as Error).message}`);
+    }
   };
-  const done = () => { stoppedAt.current = Date.now(); ExpoSpeechRecognitionModule.stop(); };
+  const done = () => { stoppedAt.current = Date.now(); void finish(); };
   const next = (by: number) => { setIndex((i) => Math.min(SENTENCES.length - 1, Math.max(0, i + by))); setPhase('idle'); setHeard(''); setProblem(''); };
-  const close = () => { try { ExpoSpeechRecognitionModule.abort(); } catch { /* not running */ } onClose(); };
+  const close = () => { void ctl.abort(); onClose(); };
 
   const mine = attempts.find((a) => a.id === sentence.id && a.config === config);
   const summary = summarize(attempts);

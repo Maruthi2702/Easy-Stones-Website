@@ -37,6 +37,9 @@ export const wordErrorRate = (expected: string, heard: string): number => {
   return editDistance(e, h) / e.length;
 };
 
+// The chunk-joining rules live in ../speech/heard.ts (the voice assistant uses them too); re-exported so the speech test keeps its imports.
+export { addResult, emptyHeard, heardText, type HeardState } from '../speech/heard';
+
 export type TermState = 'exact' | 'close' | 'missed';
 export type TermResult = { term: string; state: TermState; heardAs?: string };
 

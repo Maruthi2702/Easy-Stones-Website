@@ -2319,16 +2319,29 @@ metadata remains. Transactions require a replica set.
 The ordered inventory correction and TypeScript migration plan, including
 identified UX changes, is in `INVENTORY_MODULE_PLAN.md`.
 
-## Voice assistant: phase 0, nothing live yet (2026-11-27, on `feat/voice-assistant-phase0`)
+## Voice assistant: log a visit by talking (2026-11-28, on `feat/voice-assistant-phase0`)
 
-Plan: log a visit by talking (owner approved 2026-11-27: a small round mic above the gold +, admins / directors / managers first,
-**no transcripts stored** — only counts and cost — and visits marked "logged by voice"; design in the claude.ai canvas of the same name,
-memory `voice-assistant-plan`). **Only the building blocks are on main, none of it reachable by a user:** `src/utils/assistantVisit.ts`
-(tested: the schema, prompt, cleaning and `nextQuestion` — Claude only **extracts**, the visit is still saved by the ordinary
-`POST /api/customers/:id/visits` with its `loggedFrom` reading), `src/services/visitExtract.ts` (the Claude call, Haiku by default,
-`VISIT_EXTRACT_MODEL` overrides; no route calls it yet), `scripts/voice-extract-test.ts` (typed benchmark: Haiku ≈ Sonnet) and
-`docs/voice-words-DRAFT.md` (stone / brand / branch words for the recognizer, section F for slang is the owner's to fill).
-**The speech test** (`mobile/src/speechTest/`, opened in the app by the link `easysurfaces://speech-test`; `expo-speech-recognition`
-in `mobile/`) measures how well a real iPhone hears our words with hints on/off and on-device vs Apple servers — **never run on a real
-phone yet**; its result decides whether hints, Claude correcting the transcript, or server-side transcription is needed. It needs a new
-app build (`npx expo run:ios --device`); build 13 in App Review doesn't have it.
+Plan, architecture, ownership and open decisions: `docs/VOICE_ASSISTANT_PLAN.md`; the shared contract (types, switches, limits, routes, the
+Speech plugin) is `src/utils/assistantContract.ts` — change it first, additively. Design: claude.ai artifact **Voice Assistant — Log a Visit**
+(https://claude.ai/artifact/JLgHcE1NCdLBCJfj9cbZ8i). Owner's calls (2026-11-27): a round mic above the + (Dashboard, Customers; the Planner is the
+Dashboard's Calendar tab), admins / directors / managers first, **no transcripts stored** (counts and cost only), visits marked "logged by voice".
+**Shape:** the iPhone recognizes speech on the phone (`mobile/src/speech/`, bridge plugin `Speech`; chunks joined by `addResult` — iOS starts a new
+chunk after every pause and a closing report can be empty, which twice wiped the text in the speech test); the website sends **text** to
+`POST /api/assistant/turn` (`src/routes/assistant.ts`, stateless: the draft travels with each turn); Claude Haiku **only extracts** fields
+(`assistantVisit.ts` schema / prompt / `cleanSpokenVisit` / `mergeSpokenVisit`; `visitExtract.ts`: 8 s timeout, one retry, a breaker after 3 failures,
+no tools, instruction block cached); **code decides** the next question (`nextQuestion`) and the customer (`src/utils/soundAlike.ts` ranks the shared
+customer list by sound — only the person's tap picks one); the visit is saved by the **one existing path** (`handleSaveVisit`, its `_id`, the location
+reading, now with `byVoice: true`). Screens: `src/features/voiceAssistant/` (pure state machine `assistantMachine.ts`, `VoiceAssistantButton`,
+`AssistantSheet`, `useAssistant`, `speechDriver.ts` over B's `speechPlugin.ts`); the button shows only with `use_voice_assistant`, an add-visit right and a
+phone whose app build has the Speech plugin, so **a browser and build 13–16 show nothing**. Failure ladder: no plugin → hidden; nothing heard → retry;
+Claude down / limit → the Add visit form opens with the words in Notes; no customer match → search, then Add customer.
+**Data (migration `0042_voice_assistant`, Postgres only):** `voice_words` (the admins' list: heard → meant, seeded once from `voiceWordsSeed.ts` into an EMPTY
+table), `assistant_usage` (user + day → turns, failures, tokens, cost — never text), `visits.by_voice`. **`visits.by_voice` is in the visit schema, so run
+`npm run pg:migrate -- --apply` on Render BEFORE this reaches main** or every visit read and write fails. Switches (Users & Roles → Voice assistant):
+`use_voice_assistant` (admin; director and manager given once) and `manage_voice_words` (admin). Limits: 10 turns a minute and 40 a day per person
+(Postgres rate-limit store), body 2,000 characters, 503 without `ANTHROPIC_API_KEY`. The transcript and draft are never stored or logged; each turn
+writes one structured log line and one usage row. Admin → **Voice Assistant** (`src/features/voiceWords/`): Words (heard → meant, hide, paste a list),
+Usage (month), Speech test (the old Voice Test, `easysurfaces://speech-test` still works). **Never run on a real iPhone or in a real browser** —
+check: the keyboard with the sheet open, the button above the +, joining speech across a pause, Undo after saving, noisy rooms, 100 hints on-device,
+the 20 s / 60 s auto-stop. Not built: manager heads-up, calls and resources by voice, learning from reps' fixes, cloud speech with vocabulary, spoken
+commands, the canvas's "On site · 0.1 mi" line on the confirm card (the server computes it after the save).
