@@ -1,0 +1,263 @@
+/* The voice assistant (VoiceAssistant.tsx; design: claude.ai artifact "Voice Assistant — Log a Visit", 8 phone boards).
+   Colours are the form template's tokens (.fm-tokens, FormModal.css), so light and dark follow the app. Every animation is
+   `transform` / `opacity` only and stops under prefers-reduced-motion. The sheet is pinned to the screen and never follows
+   visualViewport (CLAUDE.md, "Phones: pop-ups, sheets and the iPhone keyboard"). Never give an ancestor of a calendar or a
+   FormSheet a `filter`, `contain` or a resting `transform`: a fixed sheet inside it would be placed against that, not the screen. */
+
+/* ── The round button ─────────────────────────────────────────────────────────────────────────────────────────────────────────── */
+/* Above the round + of the Dashboard / Planner / a customer's profile (58px, DashboardAddButton.css, CustomerProfile.css):
+   centred over it, 14px clear. Under every form and the phone tab bar's pop-ups (z 89 < the + at 90). */
+.va-fab-wrap {
+  position: fixed; z-index: 89; display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
+  right: 37px; bottom: calc(104px + env(safe-area-inset-bottom, 0px));
+  pointer-events: none; transition: opacity 0.15s ease;
+}
+.va-fab-wrap.is-hidden { opacity: 0; visibility: hidden; }
+.va-fab-wrap--list { right: 24px; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
+@media (max-width: 1023px) {
+  .va-fab-wrap { right: 29px; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+  .va-fab-wrap--list { right: 24px; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (max-width: 639px) {
+  .va-fab-wrap { right: 21px; bottom: calc(var(--app-bottom-h, 0px) + 88px + env(safe-area-inset-bottom, 0px)); }
+  .va-fab-wrap--list { right: 18px; bottom: calc(var(--app-bottom-h, 0px) + 24px + env(safe-area-inset-bottom, 0px)); }
+}
+/* The Customers list's own + only shows under 600px: the button goes above it there. */
+@media (max-width: 599px) {
+  .va-fab-wrap--list { right: 22px; bottom: calc(var(--app-bottom-h, 0px) + 92px + env(safe-area-inset-bottom, 0px)); }
+}
+.va-fab {
+  pointer-events: auto; width: 48px; height: 48px; padding: 0; border-radius: 50%;
+  border: 2px solid var(--fm-gold); background: var(--fm-card); color: var(--fm-gold);
+  display: grid; place-items: center; cursor: pointer;
+  box-shadow: 0 6px 16px rgba(20, 27, 45, 0.28); transition: transform 0.15s ease, box-shadow 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.va-fab:active { transform: scale(0.94); }
+.va-fab:focus-visible { outline: 3px solid var(--fm-ring); outline-offset: 3px; }
+@media (hover: hover) { .va-fab:hover { box-shadow: 0 8px 20px rgba(20, 27, 45, 0.34), 0 0 0 4px var(--fm-gold-tint); } }
+.va-hint {
+  pointer-events: none; background: #f2efe6; color: #14120d; font-size: 13px; font-weight: 600; line-height: 1.3;
+  padding: 8px 12px; border-radius: 12px; white-space: nowrap; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+  animation: va-fade 0.25s ease-out;
+}
+
+/* The mark turns only while the assistant is listening or working. */
+.va-logo { display: block; height: 24px; width: auto; flex: none; user-select: none; -webkit-user-drag: none; }
+.va-logo.is-spinning { animation: va-turn 1.4s linear infinite; }
+@keyframes va-turn { from { transform: perspective(240px) rotateY(0deg); } to { transform: perspective(240px) rotateY(360deg); } }
+
+/* ── The pop-up ───────────────────────────────────────────────────────────────────────────────────────────────────────────────── */
+/* Above the dashboard's pop-ups and the phone tab bar, below every form (FormModal 2147483647): like Find a customer. */
+.va-wrap {
+  --lvl: 0;
+  position: fixed; inset: 0; z-index: 2147483000; display: flex; align-items: center; justify-content: center; padding: 16px;
+  overscroll-behavior: contain; font-family: inherit; color: var(--fm-tx);
+}
+.va-scrim {
+  position: absolute; inset: 0; width: 100%; padding: 0; border: 0; cursor: default; background: var(--fm-sheet-scrim);
+  animation: va-fade 0.2s ease-out;
+}
+.va-sheet {
+  position: relative; width: 460px; max-width: 100%; max-height: min(720px, calc(100% - 32px)); display: flex; flex-direction: column;
+  background: var(--fm-card); color: var(--fm-tx); border: 1px solid var(--fm-bd2); border-radius: 22px; box-shadow: var(--fm-shadow);
+  overflow: hidden; outline: none; animation: va-rise 0.28s ease-out;
+}
+.va-sheet.is-dragging { transition: none; }
+.va-grab { display: none; }
+@keyframes va-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes va-rise { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes va-up { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+.va-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px 6px 20px; }
+.va-caption { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fm-mut); }
+.va-caption .va-logo { transform: scale(calc(1 + var(--lvl) * 0.25)); }
+.va-caption .va-logo.is-spinning { transform: none; }
+.va-x {
+  flex: none; width: 36px; height: 36px; padding: 0; border-radius: 50%; border: 1px solid var(--fm-bd2); background: transparent;
+  color: var(--fm-tx); display: grid; place-items: center; cursor: pointer;
+}
+.va-x:hover { background: var(--fm-hover); }
+.va-x:focus-visible, .va-btn:focus-visible, .va-choice:focus-visible, .va-card:focus-visible, .va-row-btn:focus-visible, .va-result:focus-visible,
+.va-chip-btn:focus-visible, .va-bar-btn:focus-visible, .va-bar-x:focus-visible { outline: 2px solid var(--fm-gold); outline-offset: 2px; }
+
+.va-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 16px; padding: 4px 20px 22px; overflow-y: auto; overscroll-behavior: contain; }
+.va-in { animation: va-up 0.26s ease-out both; animation-delay: calc(var(--i, 0) * 40ms); }
+.va-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Text */
+.va-q { margin: 0; font-size: 22px; line-height: 1.3; font-weight: 700; }
+.va-q em { font-style: normal; color: var(--fm-gold-tx); }
+.va-note { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--fm-label); }
+.va-fine { margin: 0; font-size: 12.5px; line-height: 1.45; text-align: center; color: var(--fm-mut); }
+.va-faint { color: var(--fm-mut); font-weight: 500; }
+.va-label { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fm-mut); }
+.va-heard { margin: 0; font-size: 18px; line-height: 1.4; font-weight: 600; color: var(--fm-label); }
+
+/* Listening */
+.va-live { min-height: 130px; font-size: 22px; line-height: 1.35; font-weight: 600; }
+.va-last { color: var(--fm-gold-tx); }
+.va-caret { display: inline-block; width: 2px; height: 22px; margin-left: 3px; vertical-align: -3px; background: var(--fm-gold); animation: va-blink 1s steps(2, start) infinite; }
+@keyframes va-blink { to { visibility: hidden; } }
+.va-bars { display: flex; align-items: center; justify-content: center; gap: 5px; height: 44px; }
+.va-bars span {
+  width: 5px; height: 40px; border-radius: 3px; background: var(--fm-gold); opacity: 0.9;
+  transform: scaleY(calc(0.18 + var(--lvl) * var(--k, 1))); transition: transform 90ms linear;
+}
+.va-status {
+  display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 56px; padding: 10px 14px; border-radius: 14px;
+  background: var(--fm-gold-tint); border: 1px solid var(--fm-gold-bd); color: var(--fm-gold-tx); font-weight: 600; font-size: 14px;
+}
+.va-quote { font-size: 15px; line-height: 1.4; color: var(--fm-tx); text-align: left; }
+
+/* Buttons */
+.va-actions { display: flex; gap: 10px; align-items: stretch; }
+.va-btn {
+  min-height: 52px; padding: 0 16px; border-radius: 14px; border: 1px solid var(--fm-bd); background: transparent; color: var(--fm-tx);
+  font: inherit; font-size: 15px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.va-btn:hover:not(:disabled) { background: var(--fm-hover); }
+.va-btn:disabled { opacity: 0.5; cursor: default; }
+.va-btn-main { border-color: transparent; background: var(--fm-gold); color: var(--fm-on-gold); font-weight: 700; }
+.va-btn-main:hover:not(:disabled) { background: var(--fm-gold); filter: brightness(1.05); }
+.va-grow { flex: 1.4; }
+.va-stop { width: 12px; height: 12px; border-radius: 2px; background: currentColor; }
+.va-spin { animation: va-turn-flat 1s linear infinite; }
+@keyframes va-turn-flat { to { transform: rotate(360deg); } }
+
+/* Choices and chips */
+.va-choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.va-choice {
+  min-height: 44px; padding: 0 16px; border-radius: 14px; border: 1px solid var(--fm-bd); background: var(--fm-card); color: var(--fm-tx);
+  font: inherit; font-size: 15px; font-weight: 600; text-align: left; cursor: pointer;
+}
+.va-choice.is-on { border-color: var(--fm-gold); background: var(--fm-gold-tint); }
+.va-choice-more { color: var(--fm-gold-tx); border-style: dashed; }
+.va-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.va-chip {
+  max-width: 100%; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--fm-gold-bd); background: var(--fm-gold-tint);
+  color: var(--fm-label); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.va-chip-btn { font: inherit; font-size: 13.5px; padding: 8px 13px; color: var(--fm-tx); cursor: pointer; }
+.va-miss { display: flex; flex-direction: column; gap: 12px; }
+
+/* "Which one?" */
+.va-cards { display: flex; flex-direction: column; gap: 10px; }
+.va-card {
+  display: flex; flex-direction: column; gap: 3px; padding: 14px 16px; border-radius: 16px; border: 1px solid var(--fm-bd); background: var(--fm-card);
+  color: var(--fm-tx); font: inherit; text-align: left; cursor: pointer;
+}
+.va-card:hover { border-color: var(--fm-gold); background: var(--fm-gold-soft); }
+.va-card-name { font-size: 17px; font-weight: 700; }
+.va-card-city { font-size: 14px; color: var(--fm-label); }
+.va-card-note { font-size: 12.5px; color: var(--fm-mut); }
+
+/* The confirm card */
+.va-rows { border: 1px solid var(--fm-bd); border-radius: 16px; background: var(--fm-in); overflow: hidden; }
+.va-row + .va-row { border-top: 1px solid var(--fm-bd2); }
+.va-row-btn {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border: 0; background: transparent;
+  color: var(--fm-tx); font: inherit; text-align: left; cursor: pointer; min-height: 56px;
+}
+.va-row-btn:hover:not(:disabled) { background: var(--fm-hover); }
+.va-row-btn:disabled { cursor: default; }
+.va-row-btn svg { flex: none; color: var(--fm-mut); }
+.va-row-text { display: flex; flex-direction: column; min-width: 0; }
+.va-row-label { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fm-mut); }
+.va-row-value { margin-top: 2px; font-size: 16px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.va-row-value.is-empty { font-weight: 500; font-size: 15px; color: var(--fm-mut); }
+.va-edit { display: flex; flex-direction: column; gap: 10px; padding: 4px 16px 14px; }
+
+/* The skeleton card: a shimmer that only moves by transform */
+.va-skel { border: 1px solid var(--fm-bd); border-radius: 16px; background: var(--fm-in); overflow: hidden; }
+.va-skel-row { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border-top: 1px solid var(--fm-bd2); overflow: hidden; }
+.va-skel-row:first-child { border-top: 0; }
+.va-skel-row i, .va-skel-row b { display: block; height: 10px; border-radius: 5px; background: var(--fm-bd2); }
+.va-skel-row i { width: 28%; }
+.va-skel-row b { width: 62%; height: 14px; }
+.va-skel-row::after {
+  content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, var(--fm-hover), transparent);
+  transform: translateX(-100%); animation: va-shine 1.3s ease-in-out infinite;
+}
+@keyframes va-shine { to { transform: translateX(100%); } }
+
+/* Typing, editing, searching */
+.va-typed { display: flex; flex-direction: column; gap: 12px; }
+.va-text, .va-input {
+  width: 100%; box-sizing: border-box; border: 1px solid var(--fm-bd); border-radius: 12px; background: var(--fm-in); color: var(--fm-tx);
+  font: inherit; font-size: 16px; line-height: 1.45; outline: none;
+}
+.va-text { padding: 12px 14px; resize: none; }
+.va-text:focus, .va-field:focus-within { border-color: var(--fm-gold); box-shadow: 0 0 0 3px var(--fm-ring); }
+.va-search { display: flex; flex-direction: column; gap: 10px; min-height: 0; flex: 1; }
+.va-field { display: flex; align-items: center; gap: 8px; padding: 0 8px 0 12px; height: 46px; border: 1px solid var(--fm-bd); border-radius: 12px; background: var(--fm-in); }
+.va-field > svg { flex: none; color: var(--fm-gold-tx); }
+.va-input { flex: 1; min-width: 0; height: 100%; border: 0; border-radius: 0; background: transparent; padding: 0; box-shadow: none !important; }
+.va-clear { flex: none; width: 26px; height: 26px; border-radius: 50%; border: 0; background: var(--fm-hover); color: var(--fm-mut); display: grid; place-items: center; cursor: pointer; }
+.va-link { flex: none; border: 0; background: none; padding: 8px 6px; color: var(--fm-gold-tx); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
+.va-list { display: flex; flex-direction: column; min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; }
+.va-group { padding: 8px 4px 6px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--fm-mut); }
+.va-result { display: flex; flex-direction: column; gap: 2px; padding: 11px 6px; border: 0; border-bottom: 1px solid var(--fm-bd2); background: transparent; color: var(--fm-tx); font: inherit; text-align: left; cursor: pointer; }
+.va-result:hover { background: var(--fm-hover); }
+.va-result-name { font-size: 15.5px; font-weight: 600; }
+.va-result-sub { font-size: 13px; color: var(--fm-mut); }
+.va-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 24px 8px; text-align: center; color: var(--fm-mut); }
+.va-empty p { margin: 0; }
+
+/* Something went wrong: the card, always with a way forward */
+.va-problem { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 20px; border: 1px solid var(--fm-bd); background: var(--fm-in); }
+.va-problem-head { display: flex; align-items: center; gap: 10px; }
+.va-problem-head h2 { margin: 0; font-size: 17px; font-weight: 700; }
+.va-problem-icon { width: 36px; height: 36px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--fm-seg); color: var(--fm-gold-tx); }
+
+/* ── After Save: a bar, not a sheet — the page behind stays usable ──────────────────────────────────────────────────────────── */
+.va-wrap.is-bar {
+  pointer-events: none; align-items: flex-end; padding: 0 16px calc(var(--app-bottom-h, 0px) + 16px + env(safe-area-inset-bottom, 0px));
+}
+.va-bar {
+  pointer-events: auto; width: 520px; max-width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 12px;
+  border-radius: 18px; background: var(--fm-card); color: var(--fm-tx); border: 1px solid var(--fm-bd2); box-shadow: var(--fm-shadow);
+  animation: va-rise 0.26s ease-out;
+}
+.va-bar-check { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--fm-ok); color: var(--fm-on-gold); }
+.va-bar-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.va-bar-text strong { font-size: 15px; }
+.va-bar-text small { font-size: 12.5px; color: var(--fm-mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.va-bar-note { font-size: 12.5px; color: var(--fm-mut); }
+.va-bar-btn {
+  position: relative; flex: none; min-height: 40px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--fm-bd); background: transparent; color: var(--fm-tx);
+  font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; overflow: hidden;
+}
+.va-bar-main { border-color: transparent; background: var(--fm-gold); color: var(--fm-on-gold); }
+/* The ten seconds to undo, running out: one transform, no re-render. */
+.va-bar-drain { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--fm-gold); transform-origin: left; animation: va-drain var(--va-undo-ms, 10s) linear forwards; }
+@keyframes va-drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.va-bar-x { flex: none; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--fm-mut); display: grid; place-items: center; cursor: pointer; }
+
+/* The Voice chip beside the location chip (VoiceChip.tsx). */
+.loc-chip--voice { color: #7a5c0b; background: rgba(212, 175, 55, 0.18); }
+body:not(.light-theme-active) .loc-chip--voice { color: #e6c25e; background: rgba(212, 175, 55, 0.16); }
+
+/* ── Phone: a sheet pinned to the bottom of the screen ──────────────────────────────────────────────────────────────────────── */
+@media (max-width: 639px) {
+  .va-wrap { padding: 0; align-items: flex-end; }
+  .va-wrap:not(.is-bar) { padding-top: calc(env(safe-area-inset-top, 0px) + 76px); }
+  .va-sheet { width: 100%; max-height: 100%; border: 0; border-top: 1px solid var(--fm-bd2); border-radius: 24px 24px 0 0; padding-bottom: env(safe-area-inset-bottom, 0px); animation-name: va-rise-phone; }
+  .va-sheet.is-tall { height: 100%; max-height: none; }
+  .va-grab { display: flex; flex: none; justify-content: center; padding: 8px 0 0; touch-action: none; cursor: grab; }
+  .va-grab span { width: 40px; height: 4px; border-radius: 2px; background: var(--fm-bd); }
+  .va-head { padding-top: 6px; }
+  .va-body { padding-bottom: 18px; }
+  .va-bar { width: 100%; }
+  .va-bar-x { display: none; }
+}
+@keyframes va-rise-phone { from { transform: translateY(100%); } to { transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .va-sheet, .va-scrim, .va-in, .va-bar, .va-hint { animation: none; }
+  .va-logo.is-spinning, .va-spin, .va-caret, .va-skel-row::after { animation: none; }
+  .va-bars span { transition: none; transform: scaleY(0.5); }
+  .va-bar-drain { animation: none; transform: scaleX(0.5); }
+}
+.post-location .loc-chip--voice { margin-left: 6px; }

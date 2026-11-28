@@ -30,6 +30,9 @@ export type VisitEditorDeps = {
     setDeleteConfirmation: (request: DeleteRequest) => void;
 };
 
+/** What a visit save answers (the voice assistant needs to know it landed, and under which id, to offer Undo). */
+export type VisitSaveResult = { ok: boolean; visitId: string; customerId: string };
+
 const newSession = () => ({
     preparations: new Set<Promise<string[]>>(),
     uploads: new Set<Promise<void>>(),
@@ -221,16 +224,16 @@ export function useVisitEditor({ currentUser, selectedCustomerId, selectedCustom
     // lost answer) can't add it twice — the server answers a repeat with the
     // visit it already has. If the save fails, the visit is taken back off the
     // screen and the form reopens with everything that was typed.
-    const handleSaveVisit = async (values?: unknown) => {
+    const handleSaveVisit = async (values?: unknown): Promise<VisitSaveResult> => {
         const form: Loose = values && typeof values === 'object' && !(values as Loose).nativeEvent ? (values as Loose) : visitForm;
         const targetCustomerId = form.customerId || selectedCustomerId;
         if (!targetCustomerId || !form.date || !form.purpose) {
             alert('Please fill in all mandatory fields (Customer, Date, Visit Type)');
-            return;
+            return { ok: false, visitId: '', customerId: '' };
         }
 
         const session = sessionRef.current;
-        if (session.saving) return;
+        if (session.saving) return { ok: false, visitId: '', customerId: '' };
         session.saving = true;
         setVisitSaving(true);
         visitSavesInFlight.current += 1;
@@ -346,6 +349,7 @@ export function useVisitEditor({ currentUser, selectedCustomerId, selectedCustom
             // Calendar changes announce themselves after the background link
             // completes. An immediate fetch could read the old plan.
             refreshVisits();
+            return { ok: true, visitId, customerId: targetCustomerId };
         } catch (caught) {
             const error = caught as Error & { fromServer?: boolean };
             console.error('[Visit Save Exception] Details:', {
@@ -372,6 +376,7 @@ export function useVisitEditor({ currentUser, selectedCustomerId, selectedCustom
             showSaveToast(`Couldn’t save the visit — ${why}${visitModalOpenRef.current ? '' : ' Your entries are back in the form.'}`, 'error');
             // A lost response can hide a committed visit. Reconcile it too.
             if (!error.fromServer) refreshVisits();
+            return { ok: false, visitId, customerId: targetCustomerId };
         } finally {
             session.saving = false;
             if (sessionRef.current === session) setVisitSaving(false);
@@ -399,6 +404,43 @@ export function useVisitEditor({ currentUser, selectedCustomerId, selectedCustom
             customerId: selectedCustomerId || '' // Default to selected customer if available
         });
         setShowVisitModal(true);
+    };
+
+    // The voice assistant's last rung (docs/VOICE_ASSISTANT_PLAN.md): the ordinary Add visit form, opened with what was understood
+    // and the person's own words in Notes. The location reading and the save are the form's own.
+    const handleAddVisitPrefilled = (prefill: Loose = {}) => {
+        resetSession();
+        setEditingVisit(null);
+        setIsViewingVisit(false);
+        setVisitForm({
+            date: prefill.date || formatForDateInput(new Date()),
+            purpose: prefill.purpose || 'Scheduled in Person Sales Meeting',
+            notes: prefill.notes || '',
+            outcome: prefill.outcome || '',
+            followUp: prefill.followUp || '',
+            followUpDate: prefill.followUpDate || '',
+            managerComment: '',
+            headquartersComment: '',
+            image: [],
+            customerId: prefill.customerId || selectedCustomerId || ''
+        });
+        setShowVisitModal(true);
+    };
+
+    // Undo on the assistant's "Saved" bar: deletes the visit it just saved and takes it off the screen.
+    // Already gone (404) counts as undone. No confirmation: the person tapped Undo within ten seconds of saving it.
+    const handleUndoVisit = async (visitId: string, customerId: string): Promise<boolean> => {
+        try {
+            const response = await authFetch(`${API_URL}/api/customers/${customerId}/visits/${visitId}`, { method: 'DELETE' });
+            if (!response.ok && response.status !== 404) return false;
+            removeOpenCustomerVisit(customerId, visitId);
+            removeDashboardVisit(visitId);
+            refreshVisits();
+            return true;
+        } catch (error) {
+            console.error('Error undoing the visit:', error);
+            return false;
+        }
     };
 
     // Route planner's info panel triggers these for whichever pin is open.
@@ -539,6 +581,8 @@ export function useVisitEditor({ currentUser, selectedCustomerId, selectedCustom
         handleSaveVisit,
         handleQuickAddVisit,
         handleAddVisitForPin,
+        handleAddVisitPrefilled,
+        handleUndoVisit,
         handleDeleteVisit,
         handleVisitImageUpload,
         handleRemoveVisitImage,

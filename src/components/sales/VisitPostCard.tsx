@@ -1,4 +1,5 @@
 import { LocationChip } from '../../features/location';
+import { VoiceChip } from '../../features/voiceAssistant';
 import type { LoggedFrom } from '../../utils/visitLocation';
 import type { Loose } from '../../types/records.ts';
 import React from 'react';
@@ -147,7 +148,7 @@ const VisitPostCard = ({
                             <span>{visit.purpose}</span>
                         </div>
                     )}
-                    {location && <div className="post-location"><LocationChip location={location} /></div>}
+                    {(location || visit.byVoice === true) && <div className="post-location"><LocationChip location={location} /><VoiceChip byVoice={visit.byVoice} /></div>}
 
                     {/* Images */}
                     {visit.image && (Array.isArray(visit.image) ? visit.image : [visit.image]).length > 0 && (
