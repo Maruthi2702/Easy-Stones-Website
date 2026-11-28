@@ -94,7 +94,7 @@ describe('screen helpers', () => {
     expect(customerPrefillForCompany(p, c)).toEqual({
       company: 'Acme Builders Inc', customerName: 'Ann Lee', phone: '(206) 555-1234', email: 'ann@acme.test', marketingEmail: 'ann@acme.test',
       address: { street: '1 Main St', city: 'Austin', state: 'Texas', zipCode: '78701' }, customerType: 'Contractor', status: 'New Lead',
-      notes: 'General Contractor (awarded) on “Lulac Hacienda” (Corpus Christi, Texas) · Added from Project Leads'
+      notes: 'General Contractor (awarded) on “Lulac Hacienda” (Corpus Christi, Texas) · Added from Multifamily Leads'
     });
     expect(customerPrefillForCompany(p, { ...c, group: 'other' })).not.toHaveProperty('customerType');
   });

@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { lockPage, unlockPage } from '../../components/shared/pageLock';
 
 /**
- * Project Leads' Filters on a phone (design: claude.ai artifact **Project Leads — all screen sizes**,
+ * Multifamily Leads' Filters on a phone (design: claude.ai artifact **Project Leads — all screen sizes**,
  * https://claude.ai/artifact/8jKDapsQW5FiLFj3875VCi, "Phone · filters"): a bottom sheet instead of the desktop's
  * floating panel. It follows CLAUDE.md's phone rules — pinned to the screen (never sized from visualViewport),
  * the page locked behind it, a drag outside its list moves nothing, Esc and the backdrop close it. The fields are

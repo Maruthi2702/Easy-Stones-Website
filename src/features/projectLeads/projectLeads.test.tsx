@@ -32,7 +32,7 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe('Project Leads page', () => {
+describe('Multifamily Leads page', () => {
   it('lists projects with the people to call and opens one with a way to phone or email them', async () => {
     render(<ProjectLeadsPage currentUser={{ name: 'Sam' }} />);
     expect(await screen.findByText('Lulac Hacienda Apartments')).toBeTruthy();
@@ -67,7 +67,7 @@ describe('Project Leads page', () => {
     api.listLeads.mockResolvedValue({ items: [], counts: {}, total: 0 });
     api.leadsMeta.mockResolvedValue({ ...meta, total: 0, lastImport: null });
     render(<ProjectLeadsPage />);
-    expect(await screen.findByRole('heading', { name: 'No project leads yet' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'No multifamily leads yet' })).toBeTruthy();
     fireEvent.click(screen.getByRole('tab', { name: /Contacted/ }));
     await waitFor(() => expect(api.listLeads).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'contacted' })));
   });

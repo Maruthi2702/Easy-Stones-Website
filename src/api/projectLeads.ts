@@ -39,7 +39,7 @@ export type UndoResult = { restored: number; removed: number; kept: number };
 export type ImportResult = { importId: string; projects: number; companies: number; added: number; updated: number; skippedRows: number };
 
 /**
- * Calls to the Project Leads API (src/routes/projectLeads.ts). Each resolves the JSON body or
+ * Calls to the Multifamily Leads API (src/routes/projectLeads.ts). Each resolves the JSON body or
  * throws an Error whose message can be shown as is.
  */
 async function call<T = unknown>(path: string, init: { method?: string; query?: Query; body?: BodyInit; json?: unknown } = {}): Promise<T> {

@@ -1,5 +1,5 @@
 /**
- * Project Leads ⋯ → Import ConstructConnect file, in three steps like Import from SPS and Import Sales:
+ * Multifamily Leads ⋯ → Import ConstructConnect file, in three steps like Import from SPS and Import Sales:
  * Upload and file check → Review → Results. The server reads the file (POST /import/preview writes nothing)
  * and says what it would add, refresh and drop; nothing is saved until Import. Statuses, who has a lead and
  * notes are never changed by an import, and the latest import can be undone (from Results, or ⋯ → Undo last
@@ -107,7 +107,7 @@ export default function LeadImportModal({ onClose, onDone, undoOf = null }: { on
 
   return (
     <FormModal
-      title={step === 3 ? 'Project leads imported' : 'Import ConstructConnect file'}
+      title={step === 3 ? 'Multifamily leads imported' : 'Import ConstructConnect file'}
       size="l"
       onClose={onClose}
       onSubmit={(e) => { e.preventDefault(); if (!disabled && !busy) run(); }}

@@ -1,6 +1,6 @@
 /**
- * Project leads (Sales → Project Leads, 2026-11-20): who may do what. Every action is its own
- * switch on the Users & Roles card "Project Leads" (src/features/users/roles/pagePermissions.ts),
+ * Multifamily leads (Sales → Multifamily Leads, 2026-11-20): who may do what. Every action is its own
+ * switch on the Users & Roles card "Multifamily Leads" (src/features/users/roles/pagePermissions.ts),
  * never a role name. Admin holds all four at start-up (server.ts); an admin hands the rest out.
  * Shared by the server (src/routes/projectLeads.ts), the side nav and the screen.
  */

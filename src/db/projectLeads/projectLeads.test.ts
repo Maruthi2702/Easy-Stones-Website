@@ -18,7 +18,7 @@ const project = (id: string, over: Partial<LeadProject> = {}): LeadProject => ({
   companies: [co(), co({ companyId: '2', name: 'Eng Co', role: 'Civil Engineer', group: 'other', phone: '', email: '' })], ...over
 });
 
-describe('project leads data layer', () => {
+describe('multifamily leads data layer', () => {
   let client: PGlite, db: Db;
   beforeAll(async () => {
     client = new PGlite();

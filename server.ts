@@ -926,7 +926,7 @@ async function startServer() {
         // named them for both). Managers and the purchasing team are ticked
         // by an admin under Users & Roles.
         { roles: ['admin'], permissions: [...ALL_SUPPLIER_PERMISSIONS] },
-        // Project Leads (src/utils/projectLeadAccess.ts, 2026-11-20): admin only to start;
+        // Multifamily Leads (src/utils/projectLeadAccess.ts, 2026-11-20): admin only to start;
         // an admin ticks the rest under Users & Roles.
         { roles: ['admin'], permissions: [...ALL_PROJECT_LEAD_PERMISSIONS] },
         // Sales goals (2026-11-25, src/utils/salesGoals.ts): admin and director see their team's goals and set them

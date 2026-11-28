@@ -29,7 +29,7 @@ describe('taking and releasing a lead', () => {
     expect(canReleaseLead(all, lead, new Set(['u-dir']))).toBe(true);
     expect(canReleaseLead(branch, lead, new Set(['u-mgr', 'u-sam']))).toBe(true);    // Sam is on Max's team
     expect(canReleaseLead(branch, lead, new Set(['u-mgr']))).toBe(false);            // another branch's rep
-    expect(canReleaseLead({ ...all, permissions: ['view_project_leads', 'edit_all_visits'] }, lead, '*')).toBe(false);   // a superior still needs Project Leads Edit
+    expect(canReleaseLead({ ...all, permissions: ['view_project_leads', 'edit_all_visits'] }, lead, '*')).toBe(false);   // a superior still needs Multifamily Leads Edit
   });
 
   it('falls back to the name for a lead with no assignee id', () => {

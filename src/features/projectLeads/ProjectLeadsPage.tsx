@@ -47,7 +47,7 @@ const keyPeople = (lead: Lead) => {
 };
 
 /**
- * Sales · Project Leads: construction projects from a ConstructConnect export, with the companies on each
+ * Sales · Multifamily Leads: construction projects from a ConstructConnect export, with the companies on each
  * (owner, architect, designer, contractor) so sales can call or email them to onboard or send samples.
  * Rules in src/utils/projectLeads.ts; the server checks every permission again.
  */
@@ -145,8 +145,8 @@ export default function ProjectLeadsPage({ sidebarToggle = null, currentUser = n
       const r = await exportLeads(query);
       const ws = XLSX.utils.json_to_sheet(leadExportRows(r.items));
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Project Leads');
-      XLSX.writeFile(wb, `Project Leads ${new Date().toISOString().slice(0, 10)}.xlsx`);
+      XLSX.utils.book_append_sheet(wb, ws, 'Multifamily Leads');
+      XLSX.writeFile(wb, `Multifamily Leads ${new Date().toISOString().slice(0, 10)}.xlsx`);
       if (r.total > r.items.length) setNotice(`Excel holds the first ${r.items.length.toLocaleString()} of ${r.total.toLocaleString()} projects — narrow the filters for the rest.`);
     } catch (err) {
       setNotice((err as Error).message);
@@ -213,12 +213,12 @@ export default function ProjectLeadsPage({ sidebarToggle = null, currentUser = n
       <div className="prj-page">
         <div className="prj-head">
           {sidebarToggle}
-          <h1 className="prj-title">Project Leads</h1>
+          <h1 className="prj-title">Multifamily Leads</h1>
           <span className="prj-grow" />
           <label className="prj-search">
             <Search size={16} aria-hidden="true" />
             <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Project, address, company or contact"
-              aria-label="Search project leads" />
+              aria-label="Search multifamily leads" />
             {search ? <button type="button" className="prj-x" onClick={() => setSearch('')} aria-label="Clear search"><X size={14} /></button> : null}
           </label>
           <div className="prj-tools">
@@ -296,7 +296,7 @@ export default function ProjectLeadsPage({ sidebarToggle = null, currentUser = n
           {!data && !error ? <div className="prj-loading"><Loader2 size={28} className="prj-spin" aria-label="Loading" /></div> : null}
           {data && !items.length ? (
             <div className="prj-empty">
-              <h3>{meta?.total ? 'No projects match' : 'No project leads yet'}</h3>
+              <h3>{meta?.total ? 'No projects match' : 'No multifamily leads yet'}</h3>
               {meta?.total ? 'Try another search or loosen a filter.' : meta?.canImport ? 'Use ⋯ → Import ConstructConnect file to add the first projects.' : 'An admin needs to import a ConstructConnect file.'}
             </div>
           ) : null}

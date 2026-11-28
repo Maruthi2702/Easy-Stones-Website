@@ -1,5 +1,5 @@
 import type { Loose } from '../types/records.ts';
-// Project leads API against an in-memory Postgres: every route checks its own switch, an uploaded
+// Multifamily leads API against an in-memory Postgres: every route checks its own switch, an uploaded
 // ConstructConnect workbook becomes projects (read in a worker thread), a re-import keeps what staff
 // added, and bad filters / files are refused with a message.
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
@@ -60,7 +60,7 @@ describe('filterOf', () => {
   });
 });
 
-describe('project leads API', () => {
+describe('multifamily leads API', () => {
   it('refuses every route without its own switch', async () => {
     const view = as(['view_project_leads']);
     expect((await request(app).get('/api/project-leads/meta').set(as([]))).status).toBe(403);

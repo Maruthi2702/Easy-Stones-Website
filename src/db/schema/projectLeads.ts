@@ -1,5 +1,5 @@
 /**
- * Project leads (2026-11-20, src/utils/projectLeads.ts): construction projects from a
+ * Multifamily leads (2026-11-20, src/utils/projectLeads.ts): construction projects from a
  * ConstructConnect export and the companies on each. Postgres only — new since the
  * cutover, no MongoDB copy, and no link to any copied table, so a copy never touches it.
  *
