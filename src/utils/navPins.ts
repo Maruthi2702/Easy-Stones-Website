@@ -68,6 +68,11 @@ export const NAV_ITEMS: NavItem[] = [
     id: 'lost_sales', label: 'Lost Sales', section: 'sales',
     canSee: (u: NavUser) => canViewLostSales(u) || !u
   },
+  // Crossover Sheet: in Sales since 2026-11-27 (owner's ask; was Products). Same page id and permission.
+  {
+    id: 'crossover_sheet', label: 'Crossover Sheet', section: 'sales',
+    canSee: (u: NavUser) => has(u, 'view_crossover_sheet') || isAdmin(u) || !u
+  },
   {
     id: 'delivery_schedule', label: 'Delivery Schedule', section: 'operations',
     canSee: (u: NavUser) => has(u, 'view_delivery_schedule') || isAdmin(u) || !u
@@ -83,10 +88,6 @@ export const NAV_ITEMS: NavItem[] = [
   {
     id: 'inventory_analysis', label: 'Inventory Analysis', section: 'products',
     canSee: (u: NavUser) => has(u, 'view_inventory_analysis') || isAdmin(u) || !u
-  },
-  {
-    id: 'crossover_sheet', label: 'Crossover Sheet', section: 'products',
-    canSee: (u: NavUser) => has(u, 'view_crossover_sheet') || isAdmin(u) || !u
   },
   // Incoming Material (src/features/suppliers/incoming/): approved supplier
   // bundles on their way — photos and sizes, no prices, supplier or PO.

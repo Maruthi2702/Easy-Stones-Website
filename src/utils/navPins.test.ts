@@ -14,8 +14,8 @@ describe('nav visibility', () => {
     const ids = (u: Loose) => visibleSections(u).flatMap((s) => s.items.map((i) => i.id));
     expect(ids(rep)).toEqual(['customers', 'route_planner', 'daily_report']);
     expect(ids(admin)).toEqual([
-      'dashboard', 'team_files', 'lost_sales', 'delivery_schedule', 'daily_report',
-      'inventory_analysis', 'crossover_sheet', 'live_inventory', 'users', 'roles', 'locations', 'visit_types', 'resource_types', 'voice_test', 'nav_order'
+      'dashboard', 'team_files', 'lost_sales', 'crossover_sheet', 'delivery_schedule', 'daily_report',
+      'inventory_analysis', 'live_inventory', 'users', 'roles', 'locations', 'visit_types', 'resource_types', 'voice_test', 'nav_order'
     ]);
   });
 
@@ -127,9 +127,9 @@ describe('admin nav order', () => {
     const order = { sections: ['operations', 'sales'], items: { sales: ['lost_sales'], operations: ['checkin', 'delivery_schedule'] } };
     expect(ids(orderedSections(order))).toEqual([
       ['operations', ['checkin', 'delivery_schedule', 'daily_report', 'payments']],
-      ['sales', ['lost_sales', 'customers', 'route_planner', 'holds', 'permits', 'project_leads', 'team_files', 'card_receipts']],
+      ['sales', ['lost_sales', 'customers', 'route_planner', 'holds', 'permits', 'project_leads', 'team_files', 'card_receipts', 'crossover_sheet']],
       ['home', ['dashboard']],
-      ['products', ['pricelist', 'inventory_analysis', 'crossover_sheet', 'incoming_material', 'live_inventory']],
+      ['products', ['pricelist', 'inventory_analysis', 'incoming_material', 'live_inventory']],
       ['purchasing', ['supplier_pos']],
       ['accounting', ['freight', 'fuel_man']],
       ['admin', ['users', 'roles', 'locations', 'visit_types', 'resource_types', 'receipt_categories', 'team_location', 'send_notification', 'voice_test', 'nav_order']]
