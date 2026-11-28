@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
-import { type Attempt, reportText, scoreAttempt, summarize } from './scoring';
+import { type Attempt, keepHeard, reportText, scoreAttempt, summarize } from './scoring';
 import { HINT_PHRASES, SENTENCES } from './script';
 
 /**
@@ -35,10 +35,11 @@ export default function SpeechTestScreen({ onClose }: { onClose: () => void }) {
   live.current = { sentence, config };
 
   useSpeechRecognitionEvent('result', (e) => {
-    const text = e.results?.[0]?.transcript || '';
+    const text = keepHeard(heardRef.current, e.results?.[0]?.transcript);
+    if (text === heardRef.current) return; // an empty closing report, or nothing new: keep what was heard
     heardRef.current = text;
     setHeard(text);
-    if (stoppedAt.current && !settledAt.current) settledAt.current = Date.now();
+    if (stoppedAt.current) settledAt.current = Date.now();
   });
   useSpeechRecognitionEvent('error', (e) => {
     // "no-speech" and "aborted" are ordinary endings; anything else is worth reading.

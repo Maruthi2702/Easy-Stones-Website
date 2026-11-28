@@ -37,6 +37,12 @@ export const wordErrorRate = (expected: string, heard: string): number => {
   return editDistance(e, h) / e.length;
 };
 
+/**
+ * What the screen keeps as "heard" when the recognizer reports again. The closing report after Done can arrive with no words at all;
+ * it must not erase what was heard a moment ago (that wiped a perfect reading to 100% errors on 2026-11-28).
+ */
+export const keepHeard = (previous: string, incoming: string | undefined | null): string => (incoming && incoming.trim() ? incoming : previous);
+
 export type TermState = 'exact' | 'close' | 'missed';
 export type TermResult = { term: string; state: TermState; heardAs?: string };
 

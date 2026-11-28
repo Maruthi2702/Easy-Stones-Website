@@ -2,7 +2,7 @@
 
 The app is `mobile/` (React Native / Expo): the live site in a WebView plus native sign-in, consent, location collector and
 Locate now (see `mobile/README.md`). It replaced the Capacitor shell (`ios/`, kept in the repo, no longer the one shipped).
-Bundle ID `app.easysurfaces`, name **Easy Surfaces**, version 1.0.0, **iOS build 13** is on TestFlight (build 14, 2026-11-27, adds the speech test and the Admin → Voice Test button; nothing else changes for users) and the owner has been
+Bundle ID `app.easysurfaces`, name **Easy Surfaces**, version 1.0.0, **iOS build 13** is on TestFlight (build 14, 2026-11-27, adds the speech test and the Admin → Voice Test button; build 15, 2026-11-28, fixes the test wiping what it heard; nothing else changes for users) and the owner has been
 using it on a real iPhone since 2026-11-26 (reports everything works). Rewritten 2026-11-26. Check each item against Apple's
 current rules when you reach it. **Owner steps are marked ▶.**
 

@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { compact, normalize, reportText, scoreAttempt, summarize, termResult, wordErrorRate } from './scoring';
+import { compact, keepHeard, normalize, reportText, scoreAttempt, summarize, termResult, wordErrorRate } from './scoring';
 import { HINT_PHRASES, SENTENCES } from './script';
 
 describe('speech test scoring', () => {
+  it('an empty closing report never erases what was heard', () => {
+    expect(keepHeard('dropped samples', '')).toBe('dropped samples');
+    expect(keepHeard('dropped samples', undefined)).toBe('dropped samples');
+    expect(keepHeard('dropped samples', '   ')).toBe('dropped samples');
+    expect(keepHeard('dropped', 'dropped samples')).toBe('dropped samples');
+  });
+
   it('normalizes punctuation and case', () => {
     expect(normalize('Calacatta-Gold, 3 cm!')).toBe('calacatta gold 3 cm');
     expect(compact('Table Top')).toBe('tabletop');
