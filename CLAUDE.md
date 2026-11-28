@@ -1253,10 +1253,13 @@ last visit; pins are map pins coloured by type (set A, `TYPE_COLORS` in
 colours" switch, saved as `routePlannerFilters.pinColors`). Saved filters load
 once and save only on a real change (`saveFilter`) — saving the empty starting
 value before the real one loaded is what used to reset the rep ticks on every
-open. **Location** (`src/utils/geolocationAccess.ts`): nothing prompts on its own;
-the map opens on the last known spot, only a tap on Locate asks, and once the
-browser has it allowed the position is followed quietly (only while the screen
-and tab are showing). The permission itself is the browser's, not ours to keep.
+open. **Location** (`src/utils/geolocationAccess.ts`): since 2026-11-27 (owner: "show
+them where they are when they open the map") the map opens on the last known spot
+and **asks for the position as it opens** — the browser's / app's own prompt the
+first time — then follows it quietly (only while the screen and tab are showing).
+A refusal is remembered (`locationWasRefused`) so it doesn't ask on every visit;
+only a tap on Locate asks again. The permission itself is the browser's, not ours
+to keep (Safari's "Ask each time" will still prompt on each open).
 The phone bar is icons plus a three-line More menu (`rail/MoreMenu.tsx`: Find new
 leads, Live traffic — a new map option is another row there). The design lives in
 the claude.ai artifact **Route Planner pin colours**
