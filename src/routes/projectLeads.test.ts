@@ -16,7 +16,7 @@ import * as schema from '../db/schema/index.ts';
 import { migrateDb } from '../db/client.ts';
 import { useAppDbForTests } from '../db/appDb.ts';
 import type { Db } from '../db/copy/plan.ts';
-import createProjectLeadsRouter, { filterOf } from './projectLeads.ts';
+import createProjectLeadsRouter, { filterOf, companyFilterOf } from './projectLeads.ts';
 
 const ALL = ['view_project_leads', 'edit_project_leads', 'import_project_leads', 'export_project_leads'];
 const as = (permissions: string[], name = 'Krish', id = `u-${name.toLowerCase()}`) => ({ 'x-test-user': JSON.stringify({ name, permissions, id }) });
@@ -191,5 +191,75 @@ describe('multifamily leads API', () => {
     const out = await request(app).get('/api/project-leads/export').set(as(ALL));
     expect(out.status).toBe(200);
     expect(out.body.total).toBe(2);
+  });
+});
+
+describe('multifamily companies API', () => {
+  const lineC = (id: string, title: string, companyId: string, company: string, role: string, phone = '2065551234') => {
+    const l = line(id, title, 'Washington', company, role, phone);
+    l[13] = companyId;
+    return l;
+  };
+
+  it('reads the company filters: the projects list’s, a role and the company sorts', () => {
+    expect(companyFilterOf({ q: 'acme', role: 'contractor', sort: 'projects_desc', states: 'Texas' }))
+      .toEqual({ q: 'acme', states: ['Texas'], role: 'contractor', sort: 'projects_desc' });
+    expect(() => companyFilterOf({ role: 'engineer' })).toThrow(/role/);
+    expect(() => companyFilterOf({ sort: 'value_asc' })).toThrow(/sort/);
+    expect(() => companyFilterOf({ status: 'nope' })).toThrow(/status/);
+  });
+
+  it('refuses without the view or edit or export switch', async () => {
+    expect((await request(app).get('/api/project-leads/companies').set(as([]))).status).toBe(403);
+    expect((await request(app).get('/api/project-leads/company').set(as([])).query({ key: 'x' })).status).toBe(403);
+    expect((await request(app).get('/api/project-leads/companies/export').set(as(['view_project_leads']))).status).toBe(403);
+    expect((await request(app).patch('/api/project-leads/company').query({ key: 'x' }).set(as(['view_project_leads'])).send({ status: 'new' })).status).toBe(403);
+  });
+
+  it('lists a company once across projects and keeps its own work', async () => {
+    await request(app).post('/api/project-leads/import').set(as(ALL)).attach('file', workbook([
+      lineC('2001', 'Alder Lofts', '501', 'Rainier Builders', 'Awarded - General Contractor - Bidder'),
+      lineC('2002', 'Birch Court', '501', 'Rainier Builders', 'General Contractor'),
+      lineC('2002', 'Birch Court', '502', 'Studio North', 'Architect', '')
+    ]), 'co.xlsx');
+    const list = await request(app).get('/api/project-leads/companies').set(as(ALL)).query({ q: 'rainier' });
+    expect(list.status).toBe(200);
+    expect(list.body.total).toBe(1);
+    expect(list.body.items[0]).toMatchObject({ key: '501', name: 'Rainier Builders', projects: 2, roles: ['contractor'], status: 'new', canTake: true });
+    const roles = await request(app).get('/api/project-leads/companies').set(as(ALL)).query({ role: 'architect' });
+    expect(roles.body.items.map((c: Loose) => c.name)).toEqual(['Studio North']);
+    expect((await request(app).get('/api/project-leads/companies').set(as(ALL)).query({ role: 'x' })).status).toBe(400);
+
+    const one = await request(app).get('/api/project-leads/company').set(as(ALL)).query({ key: '501' });
+    expect(one.body.projectList.map((p: Loose) => p.title)).toEqual(expect.arrayContaining(['Alder Lofts', 'Birch Court']));
+    expect((await request(app).get('/api/project-leads/company').set(as(ALL)).query({ key: 'nope' })).status).toBe(404);
+    expect((await request(app).get('/api/project-leads/company').set(as(ALL))).status).toBe(400);
+
+    const saved = await request(app).patch('/api/project-leads/company').query({ key: '501' }).set(as(ALL, 'Sam')).send({ status: 'contacted', note: ' Called ', assignedTo: 'x' });
+    expect(saved.status).toBe(200);
+    expect(saved.body).toMatchObject({ status: 'contacted', note: 'Called', assignedTo: 'Sam', assignedToId: 'u-sam', canRelease: true });
+    // A re-import leaves the company's work alone.
+    await request(app).post('/api/project-leads/import').set(as(ALL)).attach('file', workbook([lineC('2001', 'Alder Lofts', '501', 'Rainier Builders', 'General Contractor')]), 'co2.xlsx');
+    const again = await request(app).get('/api/project-leads/companies').set(as(ALL)).query({ assignedTo: 'Sam' });
+    expect(again.body.items[0]).toMatchObject({ name: 'Rainier Builders', status: 'contacted', note: 'Called' });
+  });
+
+  it('keeps the take and release rules the projects have', async () => {
+    const priya = as(ALL, 'Priya');
+    const stolen = await request(app).patch('/api/project-leads/company').query({ key: '501' }).set(priya).send({ assignedTo: 'Priya' });
+    expect(stolen.status).toBe(409);
+    const refused = await request(app).patch('/api/project-leads/company').query({ key: '501' }).set(priya).send({ assignedTo: '' });
+    expect(refused.status).toBe(403);
+    const byAll = await request(app).patch('/api/project-leads/company').query({ key: '501' }).set(as([...ALL, 'edit_all_visits'], 'Dana')).send({ assignedTo: '' });
+    expect(byAll.status).toBe(200);
+    expect(byAll.body).toMatchObject({ assignedTo: '', canTake: true });
+    expect((await request(app).patch('/api/project-leads/company').query({ key: '501' }).set(priya).send({ status: 'bogus' })).status).toBe(400);
+    expect((await request(app).patch('/api/project-leads/company').query({ key: 'nope' }).set(priya).send({ status: 'new' })).status).toBe(404);
+  });
+
+  it('exports companies with the export switch', async () => {
+    const out = await request(app).get('/api/project-leads/companies/export').set(as(ALL));
+    expect(out.status).toBe(200);
+    expect(out.body.items.length).toBeGreaterThan(0);
   });
 });

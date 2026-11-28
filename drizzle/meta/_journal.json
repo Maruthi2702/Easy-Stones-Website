@@ -288,6 +288,13 @@
       "when": 1795720957049,
       "tag": "0040_card_expense_fees",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1795847247836,
+      "tag": "0041_multifamily_company_work",
+      "breakpoints": true
     }
   ]
 }

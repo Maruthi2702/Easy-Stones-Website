@@ -8,8 +8,10 @@ import { lockPage, unlockPage } from '../../components/shared/pageLock';
  * the page locked behind it, a drag outside its list moves nothing, Esc and the backdrop close it. The fields are
  * passed in, so the desktop panel and this sheet are the same fields.
  */
-export default function FilterSheet({ count, canClear, onClear, onClose, children }: {
+export default function FilterSheet({ count, noun = 'project', canClear, onClear, onClose, children }: {
   count: number | null;
+  /** 'project' → "Show 12 projects"; 'compan' → "Show 12 companies". */
+  noun?: 'project' | 'compan';
   canClear: boolean;
   onClear: () => void;
   onClose: () => void;
@@ -68,7 +70,7 @@ export default function FilterSheet({ count, canClear, onClear, onClose, childre
         <div className="prj-sheet-body">{children}</div>
         <div className="prj-sheet-foot">
           <button type="button" ref={closeRef} className="prj-btn prj-primary prj-sheet-done" onClick={onClose}>
-            {count == null ? 'Done' : `Show ${count.toLocaleString('en-US')} project${count === 1 ? '' : 's'}`}
+            {count == null ? 'Done' : `Show ${count.toLocaleString('en-US')} ${noun === 'compan' ? (count === 1 ? 'company' : 'companies') : `project${count === 1 ? '' : 's'}`}`}
           </button>
         </div>
       </section>

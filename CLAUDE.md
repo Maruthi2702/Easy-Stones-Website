@@ -1937,6 +1937,26 @@ the bundle photos instead of a portal link (`supplierRecipients`).
 
 **Renamed Multifamily Leads 2026-11-27 (owner's ask): only what people read changed — nav label, page title, Users & Roles card, import / Excel names, the note on a customer created from a company. Code, files, `project_leads` ids, `/api/project-leads`, permission keys (`view_project_leads` …) and tables keep the old name.**
 
+**Companies view (2026-11-27, on `feat/multifamily-companies`; owner: the team wants the designers, contractors / builders and owners /
+developers listed, not the project data — one row per company across all its projects, owners and developers included).** The page
+opens on **Companies | Projects** (Companies first; Projects is the old list, untouched). A company is keyed by the lower-cased
+ConstructConnect company id, else its name (`KEY` in `src/db/projectLeads/companies.ts`); the list is worked out in SQL from
+`project_lead_companies` joined to its project, so an import shows up at once, and engineers / consultants (role group `other`) are
+**not** in it. A row: roles (`Contractor · Owner / developer`), city, how many projects and the latest, the best person to call (the
+contact with the most ways to reach them), the biggest project, status, who has it — and round **Call** / **Email** links beside the row.
+Tabs: **All · Contractors · Architects · Interior designers · Owners & developers** with counts (a company that plays two roles is in
+both tabs and counted once under All; in a role tab only that role's projects are counted). The Filters panel is shared with Projects:
+state / city / stage / type / value / updated are about the **projects**, so a company stays if it is on at least one matching project
+(its counts then cover only those); Lead is with / status / Only reachable are about the company. Sorts: Recently updated, Most projects,
+Biggest project, Name A–Z. **Status, who has it, the note and the history belong to the company** (`project_lead_company_work`, migration
+`0041`, keyed by the same key; an import never touches it; the project's own status stays on the Projects view): same Take / Release
+rules as a project (`canTakeLead` / `canReleaseLead`). The drawer (`CompanyDetail.tsx`) lists every person with Call / Email / **Create
+customer**, and every project with the role it plays there (a tap opens the project's own card). Routes `GET /companies`,
+`GET /companies/export`, `GET|PATCH /company?key=` (the key goes in the query — it can hold slashes); rules `src/utils/projectLeadCompanies.ts`,
+data `src/db/projectLeads/companies.ts` (tested on PGlite), Excel is one row per company. **Run `npm run pg:migrate -- --apply` on
+Render for `0041` BEFORE this reaches `main`** — the list joins that table. Not browser-checked, not built: a company-level "last
+contacted" date, merging two spellings of one company, a role the owner can set by hand.
+
 Sales → **Multifamily Leads** (`src/features/projectLeads/`, nav `project_leads`): construction projects
 from a ConstructConnect export (apartments, single family, townhomes; first file "Construct Connect
 Data 6-25-26", 2,195 projects / 18.5k companies) with the owner, developer, architect, designer and
