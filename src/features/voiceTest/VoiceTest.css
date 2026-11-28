@@ -16,3 +16,6 @@ body.light-theme-active .vt { --vt-line: rgba(0, 0, 0, 0.1); --vt-muted: #5f6672
 .vt-open:focus-visible { outline: 2px solid var(--vt-text); outline-offset: 2px; }
 .vt-note { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--vt-surface); border: 1px solid #f87171; color: #f87171; }
 .vt-fine { margin: 0; color: var(--vt-muted); font-size: 12.5px; }
+/* Inside Admin → Voice Assistant's Speech test tab: the page supplies the header, height and background. */
+.vt.is-embedded { height: auto; background: transparent; }
+.vt.is-embedded .vt-body { padding: 16px 0; overflow: visible; }

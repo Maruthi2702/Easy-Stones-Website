@@ -10,12 +10,20 @@ const rep = { role: 'sales_rep', permissions: ['view_customers', 'view_route_pla
 const admin = { role: 'admin', permissions: ['view_dashboard', 'manage_users'] };
 
 describe('nav visibility', () => {
+  it('Voice Assistant opens for manage_voice_words and the admin role, and nobody else', () => {
+    const sees = (u: Loose) => visibleSections(u).flatMap((s) => s.items.map((i) => i.id)).includes('voice_assistant');
+    expect(sees(admin)).toBe(true);
+    expect(sees({ role: 'manager', permissions: ['manage_voice_words'] })).toBe(true);
+    expect(sees({ role: 'manager', permissions: ['use_voice_assistant', 'manage_users'] })).toBe(false);
+    expect(sees(rep)).toBe(false);
+  });
+
   it('keeps the old per-page rules, admin fallbacks included', () => {
     const ids = (u: Loose) => visibleSections(u).flatMap((s) => s.items.map((i) => i.id));
     expect(ids(rep)).toEqual(['customers', 'route_planner', 'daily_report']);
     expect(ids(admin)).toEqual([
       'dashboard', 'team_files', 'lost_sales', 'crossover_sheet', 'delivery_schedule', 'daily_report',
-      'inventory_analysis', 'live_inventory', 'users', 'roles', 'locations', 'visit_types', 'resource_types', 'voice_test', 'nav_order'
+      'inventory_analysis', 'live_inventory', 'users', 'roles', 'locations', 'visit_types', 'resource_types', 'voice_assistant', 'nav_order'
     ]);
   });
 
@@ -132,7 +140,7 @@ describe('admin nav order', () => {
       ['products', ['pricelist', 'inventory_analysis', 'incoming_material', 'live_inventory']],
       ['purchasing', ['supplier_pos']],
       ['accounting', ['freight', 'fuel_man']],
-      ['admin', ['users', 'roles', 'locations', 'visit_types', 'resource_types', 'receipt_categories', 'team_location', 'send_notification', 'voice_test', 'nav_order']]
+      ['admin', ['users', 'roles', 'locations', 'visit_types', 'resource_types', 'receipt_categories', 'team_location', 'send_notification', 'voice_assistant', 'nav_order']]
     ]);
   });
 
