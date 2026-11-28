@@ -15,7 +15,7 @@ describe('nav visibility', () => {
     expect(ids(rep)).toEqual(['customers', 'route_planner', 'daily_report']);
     expect(ids(admin)).toEqual([
       'dashboard', 'team_files', 'lost_sales', 'delivery_schedule', 'daily_report',
-      'inventory_analysis', 'crossover_sheet', 'live_inventory', 'users', 'roles', 'locations', 'visit_types', 'resource_types', 'nav_order'
+      'inventory_analysis', 'crossover_sheet', 'live_inventory', 'users', 'roles', 'locations', 'visit_types', 'resource_types', 'voice_test', 'nav_order'
     ]);
   });
 
@@ -132,7 +132,7 @@ describe('admin nav order', () => {
       ['products', ['pricelist', 'inventory_analysis', 'crossover_sheet', 'incoming_material', 'live_inventory']],
       ['purchasing', ['supplier_pos']],
       ['accounting', ['freight', 'fuel_man']],
-      ['admin', ['users', 'roles', 'locations', 'visit_types', 'resource_types', 'receipt_categories', 'team_location', 'send_notification', 'nav_order']]
+      ['admin', ['users', 'roles', 'locations', 'visit_types', 'resource_types', 'receipt_categories', 'team_location', 'send_notification', 'voice_test', 'nav_order']]
     ]);
   });
 

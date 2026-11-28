@@ -46,6 +46,7 @@ const CardReceiptsPage = page(() => import('../cardReceipts/CardReceiptsPage'));
 const ReceiptCategoriesPage = page(() => import('../cardReceipts/categories/ReceiptCategoriesPage'));
 const TeamLocationPage = page(() => import('../teamLocation/TeamLocationPage'));
 const SendNotificationPage = page(() => import('../notifications/SendNotificationPage'));
+const VoiceTestPage = page(() => import('../voiceTest/VoiceTestPage'));
 const SupplierPosPage = page(() => import('../suppliers/SupplierPosPage'));
 const IncomingMaterialPage = page(() => import('../suppliers/incoming/IncomingMaterialPage'));
 const FreightTab = page(() => import('../freight/FreightTab'));
@@ -258,6 +259,14 @@ export default function SalesTabViews(p: SalesTabViewsProps) {
                 <ErrorBoundary key="send-notification-view">
                     <Suspense fallback={<TabLoader />}>
                         <SendNotificationPage sidebarToggle={menu()} />
+                    </Suspense>
+                </ErrorBoundary>
+            )}
+
+            {ready && crmTab === 'voice_test' && currentUser?.role === 'admin' && (
+                <ErrorBoundary key="voice-test-view">
+                    <Suspense fallback={<TabLoader />}>
+                        <VoiceTestPage sidebarToggle={menu()} />
                     </Suspense>
                 </ErrorBoundary>
             )}
