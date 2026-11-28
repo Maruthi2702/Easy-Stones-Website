@@ -45,6 +45,51 @@ or a phone), `AssistantSheet` with the 8 canvas states on the phone-sheet rules 
 **D. Admin → Voice Words.** List + add / edit / hide, seeded once; usage counts for the month at the top. Admins only.
 **E. Real-phone round.** Build 17 on the owner's phone, quiet and noisy, 20 real visits; fix; switch on for the owner only, then directors / managers.
 
+## Architecture (2026-11-28) — the contract is `src/utils/assistantContract.ts`
+
+```
+ iPhone app (React Native)                      Website in the WebView                         Server (Express, Render → Lambda)            Postgres
+ ┌────────────────────────┐   bridge 'Speech'   ┌────────────────────────────────┐  HTTPS/JSON  ┌──────────────────────────────┐        ┌───────────────┐
+ │ expo-speech-recognition│◀───────────────────▶│ VoiceAssistantButton / Sheet   │─────────────▶│ POST /api/assistant/turn     │───────▶│ voice_words   │
+ │ on-device, hints,      │  partial · level    │ state machine (pure reducer)   │              │  auth → switch → limits →    │        │ assistant_usage│
+ │ chunks joined          │                     │ soundAlike customer ranking    │◀─────────────│  Claude Haiku (extract only) │───────▶│ visits.by_voice│
+ └────────────────────────┘                     │ confirm card → existing visit  │              │  → clean → merge → usage row │        └───────────────┘
+                                                │ save (loggedFrom, byVoice)     │              │ GET /words · /voice-words    │
+                                                └────────────────────────────────┘              └──────────────────────────────┘
+```
+**Why this shape.** Audio stays on the phone (privacy, cost, speed); the server is **stateless** — the draft travels with each turn, so any instance
+(or Lambda) can answer and there is nothing to expire; Claude is a **pure function** text → fields, validated by code (`cleanSpokenVisit`), so a wrong
+or hostile answer can only blank a field, never save or pick a customer; the visit goes through the **one existing save path** (idempotent `_id`,
+location stamp, permissions, notifications) so the assistant can't create a second way to write a visit.
+**Latency budget (target p50 ≈ 2 s from "Done" to the card).** Speech is streamed and joined on the phone (0 s after Done) · one Claude call, low effort,
+cached instruction prefix (≈ 1.5 s) · customer ranking on the phone from the list already loaded (instant) · the card is already on screen as a skeleton
+while the call runs, fields fade in. Call timeout 8 s, one retry; after 3 failures in a row the server short-circuits for 30 s so a Claude outage costs
+the rep nothing but a "Type it instead".
+**Failure ladder.** No plugin / browser → button hidden · permission denied → steps to turn it on + typing · nothing heard → "Didn't catch that" + retry ·
+Claude fails or limit reached → the words go into the ordinary Add visit form's notes (the rep's own words, theirs to keep) · no customer match → search
+box, then Add customer · save fails → the existing save's retry / reopen behaviour.
+**Security.** Every route checks the switch on the server; the transcript is data inside a delimited block with a JSON-schema output (no tools given to
+the model); `byVoice` is honoured only with the switch; logs carry counts and ms, never text; limits in the Postgres store so every instance shares them;
+the server never takes the model's customer — only the person's tap picks it.
+**Observability.** One structured line per turn `{userId, ok, reason, ms, model, inTokens, outTokens, cacheRead}` + the `assistant_usage` daily row, shown
+to admins (Voice Assistant → Usage). Alarm-worthy numbers: failure rate over 5 %, p95 over 6 s.
+**Data.** `voice_words` (id, heard, meant, kind, active, note, timestamps; unique on lower(heard) when set), `assistant_usage` (user_id + day → turns, failed,
+tokens, cost; never text), `visits.by_voice boolean not null default false`. Postgres only; one migration.
+**UX and transitions (all `transform` / `opacity`, 60 fps, `prefers-reduced-motion` respected).** Mic button: a gold logo that spins only while listening or
+thinking and rests otherwise · tap → the sheet rises (~280 ms ease-out) over a dimmed page · listening: the logo pulses with the voice level and the words
+appear live, last word highlighted · Done (or 1.8 s of quiet after speech) → the logo spins, the transcript settles into a quote, the confirm card shows as a
+skeleton · the answer fills the card top to bottom (40 ms stagger, each field fades up) · a missing piece slides in as ONE question with the mic already open ·
+two customers alike → cards with the city, a tap picks and the card closes the gap · Save → the card collapses into a "Saved ✓ Undo" bar (10 s) and the
+visit appears in the list behind it · every state has the Type instead box and a Cancel; nothing ever jumps because the sheet is pinned (CLAUDE.md phone rules).
+
+## Who builds what (parallel; each in its own worktree and branch, merged by the lead)
+| Agent | Owns | Never touches |
+|---|---|---|
+| **A · Server** | migration + schema + `src/db/voiceAssistant/`, `src/routes/assistant.ts`, switches + grants, `visits.by_voice`, `assistantVisit.ts` / `visitExtract.ts` extensions (merge, glossary prompt, cache, breaker), word seed | `mobile/`, `src/features/**` |
+| **B · Phone** | `mobile/**` (Speech plugin, chunk joining, hints, level events), `src/features/voiceAssistant/speechPlugin.ts` | server, screens |
+| **C · Screens** | `src/features/voiceAssistant/**` (except speechPlugin.ts), `src/utils/soundAlike.ts`, mounting the button, the "Voice" chip | server, `mobile/`, admin page |
+| **D · Admin** | `src/features/voiceWords/**` (Words · Usage · Speech test tabs), nav entry (replaces `voice_test`), its API client | server routes, `mobile/` |
+
 ## Later (not in this build)
 Manager heads-up on a visit, calls and resources by voice, learn-from-fixes, cloud speech with vocabulary, lookups ("what did I log for Smith?"),
 scheduling by voice, reps.
