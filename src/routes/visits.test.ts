@@ -134,6 +134,40 @@ describe('POST /:customerId/visits', () => {
       expect((await visitsNow())[0].loggedFrom.lat).toBe(47.6062);
     });
   });
+  describe('logged by voice (the assistant)', () => {
+    const url = () => `/api/customers/${customerId}/visits`;
+    const VOICE = { ...STAFF, permissions: [...STAFF.permissions, 'use_voice_assistant'] };
+    it('keeps byVoice only from someone holding the assistant\'s switch, and every answer says true or false', async () => {
+      const voice = await send('post', url(), base({ byVoice: true }), VOICE);
+      expect(voice.status).toBe(201);
+      expect(voice.body.visit.byVoice).toBe(true);
+      const typed = await send('post', url(), base({ byVoice: true }));
+      expect(typed.status).toBe(201);
+      expect(typed.body.visit.byVoice).toBe(false);
+      const plain = await send('post', url(), base(), VOICE);
+      expect(plain.body.visit.byVoice).toBe(false);
+      const stored = await visitsNow();
+      expect(stored.map((v: Loose) => v.byVoice === true)).toEqual([true, false, false]);
+    });
+    it('only the string true counts, and a repeat of the same save answers the same', async () => {
+      const _id = new mongoose.Types.ObjectId().toString();
+      expect((await send('post', url(), base({ byVoice: 'true' }), VOICE)).body.visit.byVoice).toBe(false);
+      await send('post', url(), base({ _id, byVoice: true }), VOICE);
+      const again = await send('post', url(), base({ _id, byVoice: true }), VOICE);
+      expect(again.status).toBe(200);
+      expect(again.body.visit.byVoice).toBe(true);
+    });
+    it('an edit can neither set nor clear it, and still answers with it', async () => {
+      const made = await send('post', url(), base({ byVoice: true }), VOICE);
+      const id = made.body.visit._id;
+      const edited = await send('put', `${url()}/${id}`, { notes: 'changed', byVoice: false }, VOICE);
+      expect(edited.status).toBe(200);
+      expect(edited.body.visit.byVoice).toBe(true);
+      const typed = await send('post', url(), base());
+      const forged = await send('put', `${url()}/${typed.body.visit._id}`, { notes: 'x', byVoice: true }, VOICE);
+      expect(forged.body.visit.byVoice).toBe(false);
+    });
+  });
   it('saves a visit and answers 201 with it', async () => {
     const res = await send('post', `/api/customers/${customerId}/visits`, base());
     expect(res.status).toBe(201);

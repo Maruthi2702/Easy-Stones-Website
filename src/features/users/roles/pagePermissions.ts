@@ -9,7 +9,7 @@ import { PROJECT_LEADS } from '../../../utils/projectLeadAccess';
 import { CHECKIN_PERMISSIONS, CHECKIN_SECTIONS } from '../../../utils/checkInAccess';
 import { TEAM_FILES_PERMISSIONS as TEAM_FILES } from '../../../utils/teamFilesAccess';
 import {
-    ArrowLeftRight, Boxes, CalendarDays, CheckCheck, Download, FolderOpen, Building2, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, UserX, Users, Key, ArrowUpDown, ShieldAlert, Wallet, CreditCard, Camera, Ban, PackageCheck, Ship, Unlock, Factory, Bell, Target
+    ArrowLeftRight, Boxes, CalendarDays, CheckCheck, Download, FolderOpen, Building2, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, UserX, Users, Key, ArrowUpDown, ShieldAlert, Wallet, CreditCard, Camera, Ban, PackageCheck, Ship, Unlock, Factory, Bell, Target, Mic
 } from 'lucide-react';
 import { CUSTOMER_PERMISSIONS, CUSTOMER_SECTIONS } from '../../../utils/customerAccess';
 import { TEAM_PERMISSION } from '../../../utils/teamAccess';
@@ -17,6 +17,7 @@ import { PAYMENTS } from '../../../utils/paymentsReceived';
 import { TRACKING } from '../../../utils/locationTracking';
 import { LOCATE } from '../../../utils/locationRequests';
 import { SEND_NOTIFICATIONS } from '../../../utils/pushSend';
+import { USE_VOICE_ASSISTANT, MANAGE_VOICE_WORDS } from '../../../utils/assistantContract';
 import { CARD_RECEIPTS } from '../../../utils/cardReceipts';
 import { SUPPLIER_POS } from '../../../utils/supplierAccess';
 import { FULL_ACCESS, USERS, ROLES, LOCATIONS, VISIT_TYPES, RESOURCE_TYPES, TYPE_LISTS_ALL, NAV_ORDER, USERS_ROLES_SECTIONS } from '../../../utils/usersAccess';
@@ -194,6 +195,19 @@ export const PAGE_PERMISSIONS: PageDef[] = [
         color: '#f59e0b',
         actions: [
             { key: SEND_NOTIFICATIONS, label: 'Send notifications', icon: Bell, desc: "Send a message of up to 120 characters to the phones of people on the user's team (everyone working at the user's assigned locations). Only people signed in to the iOS app with notifications allowed receive it." }
+        ]
+    },
+    {
+        // Log a visit by talking (src/utils/assistantContract.ts, docs/VOICE_ASSISTANT_PLAN.md). Admin holds both switches; directors
+        // and managers are given Use once; an admin ticks it for anyone else.
+        id: 'voice_assistant',
+        page: 'Voice assistant',
+        icon: Mic,
+        description: 'Log a visit by talking: the iPhone app listens, the assistant fills in the visit, and the person checks it and saves',
+        color: '#8b5cf6',
+        actions: [
+            { key: USE_VOICE_ASSISTANT, label: 'Use assistant', icon: Mic, desc: 'See the microphone in the iPhone app and log visits by voice. What is said goes to the assistant as text; nothing said is stored, and the person always checks the visit before it is saved' },
+            { key: MANAGE_VOICE_WORDS, label: 'Voice words', icon: Pencil, desc: 'Edit the list of words the assistant gets wrong (stone names, brands, slang) and see how much it is used each month' }
         ]
     },
     {

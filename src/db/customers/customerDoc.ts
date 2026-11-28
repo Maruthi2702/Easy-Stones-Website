@@ -117,7 +117,7 @@ export function visitDoc(v: typeof visits.$inferSelect, image: string[], reactio
     notes: v.notes, outcome: v.outcome, managerComment: v.managerComment, headquartersComment: v.headquartersComment,
     followUp: v.followUp, followUpDate: v.followUpDate, followUpDoneAt: localClock(v.followUpDoneAt),
     followUpDoneOn: v.followUpDoneOn, followUpDoneBy: v.followUpDoneById, followUpDoneByName: v.followUpDoneByName,
-    followUpOutcome: v.followUpOutcome, followUpHistory, image, reactions,
+    followUpOutcome: v.followUpOutcome, followUpHistory, image, reactions, byVoice: v.byVoice ? true : null,
     createdBy: v.createdById ?? v.createdByCustomerId, createdByName: v.createdByName, createdAt: localClock(v.createdAt),
     updatedBy: v.updatedById ?? v.updatedByCustomerId, updatedByName: v.updatedByName, updatedAt: localClock(v.updatedAt) });
 }

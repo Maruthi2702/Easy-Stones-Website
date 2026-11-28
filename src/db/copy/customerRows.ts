@@ -212,7 +212,8 @@ export function customerRows(docs: Loose[], ref: ReferenceIndex, problems: CopyP
         createdById: by.userId, createdByCustomerId: by.customerId, createdByName: textOf(v.createdByName), createdAt,
         updatedById: upd.userId, updatedByCustomerId: upd.customerId, updatedByName: textOf(v.updatedByName),
         updatedAt: vc.localTime('updated_at', v.updatedAt, zone),
-        loggedFrom: v.loggedFrom && typeof v.loggedFrom === 'object' ? v.loggedFrom : null
+        loggedFrom: v.loggedFrom && typeof v.loggedFrom === 'object' ? v.loggedFrom : null,
+        byVoice: v.byVoice === true
       });
       attachmentUrls(v.image).forEach((url, i) => rows.visitAttachments.push({ visitId: vid, position: i, url }));
       (Array.isArray(v.reactions) ? v.reactions : []).forEach((r: Loose, i: number) => {

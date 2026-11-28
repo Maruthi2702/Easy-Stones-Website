@@ -11,6 +11,7 @@ import { teamOfRequest } from '../services/teamDirectory.ts';
 import { cleanVisitFields } from '../utils/visitForm.ts';
 import { followUpUpdate } from '../utils/followUpList.ts';
 import { parseReading, readingProblem, loggedFromFor, withoutLoggedFrom } from '../utils/visitLocation.ts';
+import { USE_VOICE_ASSISTANT } from '../utils/assistantContract.ts';
 
 /**
  * Saving a visit (moved out of server.ts 2026-10-23):
@@ -60,6 +61,11 @@ export default function createVisitsRouter({
       ? req.body._mutationId : undefined;
     req.app.get('io')?.emit('customer_update', { kind: 'visit', customerId, visitId: String(visitId), mutationId });
   };
+
+  // Every answer that carries a visit says whether it was logged by voice (the assistant, 2026-11-28). The stored flag is only
+  // ever set by the add below; a list read leaves it out when false, so an answer states it either way.
+  const withByVoice = <T extends object | null | undefined>(visit: T): T =>
+    (visit && typeof visit === 'object' ? { ...visit, byVoice: (visit as { byVoice?: unknown }).byVoice === true } : visit) as T;
 
   router.post('/visit-attachments', authenticate,
     requireAnyPermission('add_visits', ...ANY_EDIT_VISIT_PERMISSIONS), async (req, res) => {
@@ -124,7 +130,7 @@ export default function createVisitsRouter({
       // Already saved by an earlier try of this same request: answer with it.
       if (sentId) {
         const existing = await visitOf(customerId, visitId);
-        if (existing) return res.status(200).json({ success: true, visit: withoutLoggedFrom(existing), alreadySaved: true });
+        if (existing) return res.status(200).json({ success: true, visit: withByVoice(withoutLoggedFrom(existing)), alreadySaved: true });
       }
 
       // Every new visit carries where its logger was (owner, 2026-11-19: no
@@ -136,6 +142,7 @@ export default function createVisitsRouter({
       if (stale) return res.status(400).json({ message: stale, code: 'location_stale' });
       const loggedFrom = loggedFromFor(reading, { purpose, pin: customerInfo.coordinates, readAt: getNowLocalISO() });
 
+      const byVoice = req.body.byVoice === true && Boolean(req.user?.permissions?.includes(USE_VOICE_ASSISTANT));
       const visitData = {
         _id: visitId,
         date: processedDate,
@@ -151,7 +158,10 @@ export default function createVisitsRouter({
         createdByName,
         customerContactName: customerInfo.company || customerInfo.contactName || '',
         createdAt: getNowLocalISO(),
-        loggedFrom
+        loggedFrom,
+        // "Logged by voice": the assistant's save says so, and it is kept only from someone who holds the assistant's switch (anyone
+        // else's `byVoice` is ignored, so the mark can't be put on a visit by hand). Set here once; an edit never changes it.
+        ...(byVoice ? { byVoice: true } : {})
       };
 
       const updateStart = Date.now();
@@ -164,7 +174,7 @@ export default function createVisitsRouter({
         },
         now: getNowLocalISO
       });
-      if (saved.kind === 'alreadySaved') return res.status(200).json({ success: true, visit: withoutLoggedFrom(saved.visit), alreadySaved: true });
+      if (saved.kind === 'alreadySaved') return res.status(200).json({ success: true, visit: withByVoice(withoutLoggedFrom(saved.visit)), alreadySaved: true });
       if (saved.kind === 'notFound') {
         console.error(`[Add Visit] Atomic update matched zero docs for customer: ${customerId}`);
         return res.status(404).json({ message: 'Customer not found during update' });
@@ -173,7 +183,7 @@ export default function createVisitsRouter({
       console.log(`[Add Visit] Success in ${Date.now() - updateStart}ms for customer ${customerId}`);
       req.app.get('io').emit('visit_updated', { customerId });
       announceVisit(req, customerId, visitId);
-      res.status(201).json({ success: true, visit: visitData });
+      res.status(201).json({ success: true, visit: withByVoice(visitData) });
 
       // After answering: on MongoDB the visit goes on the logger's calendar (completing
       // their own Scheduled entry that day, else a drop-in; src/services/visitSchedule.ts)
@@ -250,7 +260,7 @@ export default function createVisitsRouter({
       // The stored visit (image links and all), as POST answers — the screen
       // shows this, not a guess from what it sent.
       announceVisit(req, customerId, visitId);
-      res.json({ success: true, message: 'Visit updated successfully', visit: withoutLoggedFrom(result.visit) });
+      res.json({ success: true, message: 'Visit updated successfully', visit: withByVoice(withoutLoggedFrom(result.visit)) });
 
       // After answering: a visit moved to another day takes its calendar entry along
       // (MongoDB; Postgres did it with the save), and the log line is written.
@@ -293,7 +303,7 @@ export default function createVisitsRouter({
       });
       if (!result) return res.status(404).json({ message: 'Customer or visit not found' });
       req.app.get('io')?.emit('customer_update');
-      res.json({ visit: withoutLoggedFrom(result.visit) });
+      res.json({ visit: withByVoice(withoutLoggedFrom(result.visit)) });
 
       await result.afterAnswer(emitScheduleUpdate);
     } catch (error) {

@@ -181,7 +181,9 @@ export const visits = pgTable('visits', {
   updatedByName: text('updated_by_name').notNull().default(''),
   updatedAt: localTime('updated_at'),
   /** Where the logger was when it was added (src/utils/visitLocation.ts); null = saved before this existed. Written once, never edited. */
-  loggedFrom: jsonb('logged_from')
+  loggedFrom: jsonb('logged_from'),
+  /** Logged with the voice assistant (2026-11-28): kept only from someone holding `use_voice_assistant`. */
+  byVoice: boolean('by_voice').notNull().default(false)
 }, t => [
   idFormat('visits'),
   index('visits_customer_date_idx').on(t.customerId, t.visitDate),

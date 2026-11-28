@@ -176,6 +176,13 @@ import createCustomerSalesRouter from './src/routes/customerSales.ts';
 import createLocationTrackingRouter from './src/routes/locationTracking.ts';
 import createLocationRequestsRouter from './src/routes/locationRequests.ts';
 import createPushSendRouter from './src/routes/pushSend.ts';
+import createAssistantRouter from './src/routes/assistant.ts';
+import { createVisitExtractor } from './src/services/visitExtract.ts';
+import { seedVoiceWords } from './src/db/voiceAssistant/index.ts';
+import { STARTING_VOICE_WORDS } from './src/utils/voiceWordsSeed.ts';
+import { USE_VOICE_ASSISTANT, MANAGE_VOICE_WORDS } from './src/utils/assistantContract.ts';
+import { typeStore } from './src/db/types/index.ts';
+import type { SpokenType } from './src/utils/assistantVisit.ts';
 import createPushDevicesRouter from './src/routes/pushDevices.ts';
 import { appSiteAssociation } from './src/utils/appLinks.ts';
 import { startLocationRetention } from './src/jobs/locationRetention.ts';
@@ -670,6 +677,17 @@ async function startServer() {
       console.error('Error seeding the visit / resource type lists:', seedError);
     }
 
+    // The voice assistant's word list starts with what the app already knows (src/utils/voiceWordsSeed.ts); an empty list
+    // only, once — after that the admins' list is the only source. Postgres only, so not without a database.
+    if (process.env.DATABASE_URL) {
+      try {
+        const added = await seedVoiceWords(STARTING_VOICE_WORDS);
+        if (added) console.log(`🎙️ Voice words: started the list with ${added} words`);
+      } catch (seedError) {
+        console.error('Error seeding the voice words:', seedError);
+      }
+    }
+
     // Database migration (once): Seattle's Daily Report email list was typed
     // into the code until 2026-10-15; copy it onto Seattle's location.
     try {
@@ -942,7 +960,11 @@ async function startServer() {
         // own assigned branches, so branch managers elsewhere were hidden. Given once; an admin can switch it off under
         // Users & Roles. Ship only with the rule that keeps an Admin's own receipts from directors (mayViewHolderReceipts).
         { roles: ['director'], permissions: [CARD_RECEIPTS.VIEW_ALL] },
-        { roles: ['director'], permissions: [...DIRECTOR_SUPPLIER_GRANTS] }
+        { roles: ['director'], permissions: [...DIRECTOR_SUPPLIER_GRANTS] },
+        // Voice assistant (2026-11-28, src/utils/assistantContract.ts): admin holds both switches; directors and managers are
+        // given the assistant itself once. An admin ticks it for anyone else under Users & Roles → Voice assistant.
+        { roles: ['admin'], permissions: [USE_VOICE_ASSISTANT, MANAGE_VOICE_WORDS] },
+        { roles: ['director', 'manager'], permissions: [USE_VOICE_ASSISTANT] }
       ];
 
       // Each grant reaches a role once. Its permissions are recorded in
@@ -3497,6 +3519,13 @@ app.use('/api/location-tracking', createLocationRequestsRouter({ authenticate })
 app.use('/api/push-devices', createPushDevicesRouter({ guard: [authenticate, requireSalesPage] }));
 // An admin's message to people's phones (src/utils/pushSend.ts): needs `send_notifications`, limited to the sender's team.
 app.use('/api/push-send', createPushSendRouter({ authenticate }));
+// The voice assistant (src/routes/assistant.ts, contract in src/utils/assistantContract.ts): off without ANTHROPIC_API_KEY (503);
+// every route checks its own switch. The visit types are the Add visit list (Admin → Visit Types).
+app.use('/api/assistant', createAssistantRouter({
+  authenticate,
+  extractor: createVisitExtractor(),
+  visitTypes: () => typeStore('visit', { Model: VisitType as never, countUses: customerData.countVisitTypeUses, replaceUses: customerData.replaceVisitType }).list() as Promise<SpokenType[]>
+}));
 app.use('/api/customers', createCustomerSpsConnectRouter({
   authenticate,
   uploadMemory,

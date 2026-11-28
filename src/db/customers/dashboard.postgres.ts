@@ -51,7 +51,7 @@ export async function dashboardVisits(db: Db, q: DashboardReadQuery): Promise<Lo
     managerComment: v.managerComment, headquartersComment: v.headquartersComment,
     followUp: v.followUp, followUpDate: v.followUpDate, followUpDoneAt: clock(v.followUpDoneAt),
     followUpDoneOn: v.followUpDoneOn, followUpDoneByName: v.followUpDoneByName,
-    followUpOutcome: v.followUpOutcome, followUpHistory: historyOf.get(v.id) ?? [],
+    followUpOutcome: v.followUpOutcome, followUpHistory: historyOf.get(v.id) ?? [], byVoice: v.byVoice ? true : null,
     ...(q.filterType === 'followup' ? { phone, city } : {}),
     createdBy: v.createdById ?? v.createdByCustomerId, createdAt: clock(v.createdAt),
     customerId: v.customerId, customerName: `${company}${company && contactName ? ' - ' : ''}${contactName}`,

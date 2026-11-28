@@ -63,6 +63,7 @@ export async function dashboardVisits({ people, startDate, endDate, filterType }
           followUpDoneByName: "$visits.followUpDoneByName",
           followUpOutcome: "$visits.followUpOutcome",
           followUpHistory: "$visits.followUpHistory",
+          byVoice: "$visits.byVoice",
           phone: "$phone",
           city: "$address.city",
           createdBy: "$visits.createdBy",

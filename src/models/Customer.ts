@@ -38,7 +38,9 @@ const visitDefinition = {
   updatedAt: String,
   // Where the logger was when this was added: one reading and the mark the server
   // worked out (src/utils/visitLocation.ts). Written once, never edited.
-  loggedFrom: mongoose.Schema.Types.Mixed
+  loggedFrom: mongoose.Schema.Types.Mixed,
+  // Logged with the voice assistant (2026-11-28): set only on add, only from someone holding use_voice_assistant. Absent = not.
+  byVoice: Boolean
 } as const;
 const visitSchema = new mongoose.Schema(visitDefinition);
 
