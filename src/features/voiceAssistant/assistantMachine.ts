@@ -55,7 +55,8 @@ export interface AssistantState {
   customerMiss: string;
   /** "Didn't catch that" retries used. */
   retries: number;
-  error: { kind: ErrorKind; why?: FailureWhy } | null;
+  /** `code`: what the phone's recognizer reported when the microphone failed (shown small, so a problem can be told apart). */
+  error: { kind: ErrorKind; why?: FailureWhy; code?: string } | null;
   saved: { visitId: string; customerId: string; undoUntil: number } | null;
   undo: 'ready' | 'working' | 'failed' | 'expired';
   lastResult: 'saved' | 'undone' | 'save-failed' | 'cancelled' | null;
@@ -79,7 +80,7 @@ export type AssistantEvent =
   | { type: 'PERMISSION_RESULT'; granted: boolean }
   | { type: 'MIC'; on: boolean }
   /** The recognizer failed while listening: `denied` = the microphone / speech permission is off. */
-  | { type: 'MIC_FAILED'; denied: boolean }
+  | { type: 'MIC_FAILED'; denied: boolean; code?: string }
   | { type: 'PARTIAL'; text: string }
   | { type: 'DONE'; text: string }
   | { type: 'TYPE_INSTEAD' }
@@ -161,7 +162,7 @@ export function assistantReducer(s: AssistantState, e: AssistantEvent): Assistan
     case 'MIC_FAILED': {
       if (!isAnswering(s)) return s;
       if (e.denied) return { ...s, phase: 'error', mic: 'off', partial: '', error: { kind: 'permission-denied' } };
-      return { ...s, phase: 'error', mic: 'off', partial: '', retries: s.retries + 1, error: { kind: 'nothing-heard' } };
+      return { ...s, phase: 'error', mic: 'off', partial: '', retries: s.retries + 1, error: { kind: 'nothing-heard', code: e.code || undefined } };
     }
     case 'PARTIAL':
       return isAnswering(s) ? { ...s, partial: e.text } : s;

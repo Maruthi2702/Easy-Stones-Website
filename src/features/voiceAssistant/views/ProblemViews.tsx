@@ -54,6 +54,7 @@ export function ErrorView({ a }: { a: Assistant }) {
     return (
       <Problem icon={<HelpCircle size={18} aria-hidden="true" />} title="I didn’t catch that">
         <p className="va-note">{again ? 'Try again a little closer to the phone, or type it.' : 'I still can’t hear it. Type it, or open the visit form.'}</p>
+        {!s.error?.why ? <p className="va-note" style={{ opacity: 0.6, fontSize: 12 }}>Phone said: {s.error?.code || 'no words came back'}</p> : null}
         <div className="va-actions">
           <button type="button" className="va-btn va-btn-ghost" onClick={a.typeInstead}>Type instead</button>
           {again

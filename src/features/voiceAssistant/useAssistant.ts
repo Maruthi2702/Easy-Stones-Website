@@ -138,11 +138,18 @@ export function useAssistant(host: AssistantHost, speech: SpeechDriver = default
             if (text.trim()) timer = setTimeout(() => finishRef.current(), SILENCE_MS);
           }),
           opened.onLevel((level) => { levelRef.current = Math.max(0, Math.min(1, level)); }),
-          opened.onError((e) => { if (!cancelled && !stopped) dispatch({ type: 'MIC_FAILED', denied: denied(e?.code) || denied(e?.message) }); })
+          opened.onError((e) => {
+            if (cancelled || stopped) return;
+            const isDenied = denied(e?.code) || denied(e?.message);
+            // 'ended' / 'auto-stopped' mean the phone stopped listening BY ITSELF: the words heard so far are still there (stop() has them), so
+            // they are the answer — never "didn't catch that". Any other error after words were heard keeps those words too.
+            if (!isDenied && (e?.code === 'ended' || e?.code === 'auto-stopped' || stateRef.current.partial.trim())) { finishRef.current(); return; }
+            dispatch({ type: 'MIC_FAILED', denied: isDenied, code: String(e?.code ?? '') });
+          })
         );
         dispatch({ type: 'MIC', on: true });
       } catch (error) {
-        if (!cancelled) dispatch({ type: 'MIC_FAILED', denied: denied((error as { code?: unknown })?.code) || denied((error as Error)?.message) });
+        if (!cancelled) dispatch({ type: 'MIC_FAILED', denied: denied((error as { code?: unknown })?.code) || denied((error as Error)?.message), code: String((error as { code?: unknown })?.code ?? (error as Error)?.message ?? 'start-failed').slice(0, 60) });
       }
     })();
 
