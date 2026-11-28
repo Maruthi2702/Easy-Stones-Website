@@ -31,5 +31,15 @@ export const defaultSpeech: SpeechDriver = {
   async requestPermission() {
     try { return (await getSpeech()?.requestPermission()) ?? { granted: false, canAskAgain: false }; } catch { return { granted: false, canAskAgain: false }; }
   },
-  listen: (options) => listen(options)
+  async listen(options) {
+    // speechPlugin.listen(hints, { lang }) resolves a handle whose stop() gives the words as a string; the assistant wants { text }.
+    const handle = await listen(options.hints, { lang: options.lang });
+    return {
+      stop: async () => ({ text: await handle.stop() }),
+      abort: () => handle.abort(),
+      onPartial: handle.onPartial,
+      onLevel: handle.onLevel,
+      onError: (cb) => handle.onError((code, message) => cb({ code, message }))
+    };
+  }
 };
