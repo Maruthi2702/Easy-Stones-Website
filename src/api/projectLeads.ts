@@ -2,6 +2,7 @@ import { API_URL } from '../config/api';
 import { authFetch } from './authFetch';
 import { queryEntries, type ErrorBody, type Query } from '../types/api';
 import type { LeadCompany, LeadStatus, LeadProject } from '../utils/projectLeads';
+import type { CompaniesPage, CompanyDetail } from '../utils/projectLeadCompanies';
 
 /** A project as the screen gets it: the export's fields, what staff added, and its companies (best contacts first). */
 export type Lead = Omit<LeadProject, 'companies'> & {
@@ -39,7 +40,7 @@ export type UndoResult = { restored: number; removed: number; kept: number };
 export type ImportResult = { importId: string; projects: number; companies: number; added: number; updated: number; skippedRows: number };
 
 /**
- * Calls to the Project Leads API (src/routes/projectLeads.ts). Each resolves the JSON body or
+ * Calls to the Multifamily Leads API (src/routes/projectLeads.ts). Each resolves the JSON body or
  * throws an Error whose message can be shown as is.
  */
 async function call<T = unknown>(path: string, init: { method?: string; query?: Query; body?: BodyInit; json?: unknown } = {}): Promise<T> {
@@ -74,3 +75,12 @@ export const previewLeadsFile = (file: File) => {
   return call<ImportPreview>('/import/preview', { method: 'POST', body: form });
 };
 export const undoLeadsImport = (importId: string) => call<UndoResult>(`/import/${encodeURIComponent(importId)}/undo`, { method: 'POST' });
+
+/** The Companies view: one row per company across its projects (src/utils/projectLeadCompanies.ts). */
+export const listCompanies = (query: Query) => call<CompaniesPage>('/companies', { query });
+export const exportCompanies = (query: Query) => call<CompaniesPage>('/companies/export', { query });
+export const getCompanyDetail = (key: string) => call<CompanyDetail>('/company', { query: { key } });
+export const updateCompanyWork = (key: string, change: { status?: LeadStatus; note?: string; assignedTo?: string }) =>
+  call<CompanyDetail>('/company', { method: 'PATCH', query: { key }, json: change });
+/** One project, for opening it from a company's list. */
+export const getLead = (id: string) => call<Lead>(`/${encodeURIComponent(id)}`);

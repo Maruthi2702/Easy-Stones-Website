@@ -1253,10 +1253,13 @@ last visit; pins are map pins coloured by type (set A, `TYPE_COLORS` in
 colours" switch, saved as `routePlannerFilters.pinColors`). Saved filters load
 once and save only on a real change (`saveFilter`) — saving the empty starting
 value before the real one loaded is what used to reset the rep ticks on every
-open. **Location** (`src/utils/geolocationAccess.ts`): nothing prompts on its own;
-the map opens on the last known spot, only a tap on Locate asks, and once the
-browser has it allowed the position is followed quietly (only while the screen
-and tab are showing). The permission itself is the browser's, not ours to keep.
+open. **Location** (`src/utils/geolocationAccess.ts`): since 2026-11-27 (owner: "show
+them where they are when they open the map") the map opens on the last known spot
+and **asks for the position as it opens** — the browser's / app's own prompt the
+first time — then follows it quietly (only while the screen and tab are showing).
+A refusal is remembered (`locationWasRefused`) so it doesn't ask on every visit;
+only a tap on Locate asks again. The permission itself is the browser's, not ours
+to keep (Safari's "Ask each time" will still prompt on each open).
 The phone bar is icons plus a three-line More menu (`rail/MoreMenu.tsx`: Find new
 leads, Live traffic — a new map option is another row there). The design lives in
 the claude.ai artifact **Route Planner pin colours**
@@ -1265,6 +1268,27 @@ the claude.ai artifact **Route Planner pin colours**
 hook per job (`useSavedFilters`, `useMapPins`, `usePanels`, `useDayPlan`,
 `useScheduleData` / `useScheduleActions`…), and `map/`, `rail/`, `panels/`,
 `customer/` for its parts.
+
+## Route Planner on a phone: Find new leads (2026-11-27, on `feat/leads-phone`)
+
+Design: claude.ai artifact **Find new leads on a phone** (https://claude.ai/artifact/4cQPkTME848RD4sULAAdQC;
+8 screens, the owner approved it 2026-11-27). The phone bar's ⋯ → **Find new leads** no longer opens an input inside the
+menu (the keyboard covered it): it opens `src/features/routePlanner/leadsPhone/` — `LeadsPhone.tsx` is a search bar fixed to
+the **top** of the screen (16px, Enter says Search), recent searches while it has focus, and a bottom sheet (peek → pull up
+for the list) of results; `useLeadsPhone.ts` holds its state over the page's one lead search (`useLeadSearch`, which now
+answers with what it found and can keep a saved lead on the list), rules in `leadsPhoneRules.ts` (tested). Results are
+numbered nearest the map's centre first, and the pins wear the same numbers (`numberedLeadIcon`, `MapCanvas`'s `leadPins`).
+A lead's row: Call, **+** (saves it as a New Lead, same as the Tools panel's list) — a saved lead stays on the list as
+**Saved** and its pin goes (the new customer pin replaces it). Tapping a row or pin opens the lead's card (Call, Directions in
+Google Maps, Save as lead). **The rep is never asked to zoom** (owner, 2026-11-27: "why should the user zoom in?"; centre of the map, not their position):
+Places returns at most 20 places, so a map no wider than 10 miles searches what is on screen, and a wider one searches a
+**10-mile box around the map's centre** (`searchAreaFor`, `SEARCH_STEPS = [10, 25, 50]`, `boxAround`; `useLeadSearch.searchLeads`'s
+third argument is that box). The search bar's panel and the list's heading say which ("10 mi around the map centre" / "this map
+area"). **Search wider** (empty-result sheet, and the list's last row) fits the map to the next step (25, then 50 mi), searches
+there and stops being offered at 50. After a pan or zoom a **Search this area** pill re-runs the search. A failed search has its own sheet.
+Desktop and tablet keep `LeadSearchControl` and the Tools panel's Leads tab. **Never tried on a real iPhone** — check the
+keyboard with the bar, the sheet's handle drag and the pill; Directions here is plain Google Maps, not the planner's
+"Open in" choice.
 
 ## Cart ticks are instant (2026-10-18)
 
@@ -1909,9 +1933,31 @@ give it step 1** (owner's call). A supplier with **no portal login** gets the
 decision and unlock emails at the supplier's own email, in its language, with
 the bundle photos instead of a portal link (`supplierRecipients`).
 
-## Project Leads: ConstructConnect projects to contact (2026-11-20, on `feat/project-leads`)
+## Multifamily Leads (was Project Leads): ConstructConnect projects to contact (2026-11-20, on `feat/project-leads`)
 
-Sales → **Project Leads** (`src/features/projectLeads/`, nav `project_leads`): construction projects
+**Renamed Multifamily Leads 2026-11-27 (owner's ask): only what people read changed — nav label, page title, Users & Roles card, import / Excel names, the note on a customer created from a company. Code, files, `project_leads` ids, `/api/project-leads`, permission keys (`view_project_leads` …) and tables keep the old name.**
+
+**Companies view (2026-11-27, on `feat/multifamily-companies`; owner: the team wants the designers, contractors / builders and owners /
+developers listed, not the project data — one row per company across all its projects, owners and developers included).** The page
+opens on **Companies | Projects** (Companies first; Projects is the old list, untouched). A company is keyed by the lower-cased
+ConstructConnect company id, else its name (`KEY` in `src/db/projectLeads/companies.ts`); the list is worked out in SQL from
+`project_lead_companies` joined to its project, so an import shows up at once, and engineers / consultants (role group `other`) are
+**not** in it. A row: roles (`Contractor · Owner / developer`), city, how many projects and the latest, the best person to call (the
+contact with the most ways to reach them), the biggest project, status, who has it — and round **Call** / **Email** links beside the row.
+Tabs: **All · Contractors · Architects · Interior designers · Owners & developers** with counts (a company that plays two roles is in
+both tabs and counted once under All; in a role tab only that role's projects are counted). The Filters panel is shared with Projects:
+state / city / stage / type / value / updated are about the **projects**, so a company stays if it is on at least one matching project
+(its counts then cover only those); Lead is with / status / Only reachable are about the company. Sorts: Recently updated, Most projects,
+Biggest project, Name A–Z. **Status, who has it, the note and the history belong to the company** (`project_lead_company_work`, migration
+`0041`, keyed by the same key; an import never touches it; the project's own status stays on the Projects view): same Take / Release
+rules as a project (`canTakeLead` / `canReleaseLead`). The drawer (`CompanyDetail.tsx`) lists every person with Call / Email / **Create
+customer**, and every project with the role it plays there (a tap opens the project's own card). Routes `GET /companies`,
+`GET /companies/export`, `GET|PATCH /company?key=` (the key goes in the query — it can hold slashes); rules `src/utils/projectLeadCompanies.ts`,
+data `src/db/projectLeads/companies.ts` (tested on PGlite), Excel is one row per company. **Run `npm run pg:migrate -- --apply` on
+Render for `0041` BEFORE this reaches `main`** — the list joins that table. Not browser-checked, not built: a company-level "last
+contacted" date, merging two spellings of one company, a role the owner can set by hand.
+
+Sales → **Multifamily Leads** (`src/features/projectLeads/`, nav `project_leads`): construction projects
 from a ConstructConnect export (apartments, single family, townhomes; first file "Construct Connect
 Data 6-25-26", 2,195 projects / 18.5k companies) with the owner, developer, architect, designer and
 contractor on each, so sales can phone or email them to onboard or send samples. **Postgres only**
@@ -1935,7 +1981,7 @@ kept in `history`, never trimmed), take or release a lead ("Take this lead" save
 default, not the Rep picker), and write a note. Each company has tel: / mailto: links and
 **Create customer**, which opens Add customer pre-filled (`customerPrefillForCompany`, the Permits
 contractor pop-up's route). API `src/routes/projectLeads.ts` at `/api/project-leads` (tested);
-switches (`src/utils/projectLeadAccess.ts`, Users & Roles card "Project Leads"): View, Edit, Import,
+switches (`src/utils/projectLeadAccess.ts`, Users & Roles card "Multifamily Leads"): View, Edit, Import,
 Export — **admin only to start**, an admin ticks the rest. **On a phone (<640px) Filters is a bottom sheet** (`FilterSheet.tsx`, design: the claude.ai artifact **Project Leads — all screen sizes**, https://claude.ai/artifact/8jKDapsQW5FiLFj3875VCi): the same fields as the desktop panel (**State is one multi-select dropdown on every screen size**, `StatePicker.tsx`, owner 2026-11-20 — its list opens inline under the field because the panel and the sheet both scroll and would clip a floating one), a live "Show N projects" button, page locked behind it, pinned to the screen. **Who a lead is with** is the first thing in the panel (a gold callout, owner 2026-11-20) and is enforced on the server: **taking** is for yourself, by anyone with Edit, only while nobody has it; **releasing** is the person it's with **or their superior** — the existing Visits rule (`canModifyVisit`: **Edit all**, or **Edit branch** over someone on your team), so no new switch (`canTakeLead` / `canReleaseLead` in `projectLeadAccess.ts`, tested; the assignee's user id is `assigned_to_id`, migration `0022`). Every lead the API sends carries `canTake` / `canRelease` for the caller, and every take and release is a line in its history. Not built: a rep dropdown for assigning,
 a reminder when a lead goes quiet, the old projects' relevance
 (the file goes back to 2012; the Updated filter narrows it).
@@ -2272,3 +2318,17 @@ metadata remains. Transactions require a replica set.
 
 The ordered inventory correction and TypeScript migration plan, including
 identified UX changes, is in `INVENTORY_MODULE_PLAN.md`.
+
+## Voice assistant: phase 0, nothing live yet (2026-11-27, on `feat/voice-assistant-phase0`)
+
+Plan: log a visit by talking (owner approved 2026-11-27: a small round mic above the gold +, admins / directors / managers first,
+**no transcripts stored** — only counts and cost — and visits marked "logged by voice"; design in the claude.ai canvas of the same name,
+memory `voice-assistant-plan`). **Only the building blocks are on main, none of it reachable by a user:** `src/utils/assistantVisit.ts`
+(tested: the schema, prompt, cleaning and `nextQuestion` — Claude only **extracts**, the visit is still saved by the ordinary
+`POST /api/customers/:id/visits` with its `loggedFrom` reading), `src/services/visitExtract.ts` (the Claude call, Haiku by default,
+`VISIT_EXTRACT_MODEL` overrides; no route calls it yet), `scripts/voice-extract-test.ts` (typed benchmark: Haiku ≈ Sonnet) and
+`docs/voice-words-DRAFT.md` (stone / brand / branch words for the recognizer, section F for slang is the owner's to fill).
+**The speech test** (`mobile/src/speechTest/`, opened in the app by the link `easysurfaces://speech-test`; `expo-speech-recognition`
+in `mobile/`) measures how well a real iPhone hears our words with hints on/off and on-device vs Apple servers — **never run on a real
+phone yet**; its result decides whether hints, Claude correcting the transcript, or server-side transcription is needed. It needs a new
+app build (`npx expo run:ios --device`); build 13 in App Review doesn't have it.

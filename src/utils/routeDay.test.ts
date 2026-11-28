@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planDayRoute, type DayStop } from './routeDay.ts';
+import { isQuickStopId, newQuickStopId, planDayRoute, quickDayStops, realChanges, type DayStop, type QuickStop } from './routeDay.ts';
 
 const at = (h: number, m = 0) => new Date(2026, 10, 12, h, m).getTime();
 // Points run west→east along one road, ~0.7 mi per 0.01° of longitude at this latitude.
@@ -99,5 +99,43 @@ describe('planDayRoute', () => {
     const only = planDayRoute([stop('a', 0, 9, { minutes: 60, wasMinutes: 30 })], { origin: null });
     expect(only.unchanged).toBe(false);
     expect(only.stops[0].patch.endTime).toBeDefined();
+  });
+});
+
+describe('quick stops', () => {
+  const quick = (id: string, x: number, minutes = 30): QuickStop => ({ id, label: 'Lunch', address: 'Somewhere', point: p(x), minutes });
+
+  it('have their own ids and start after the day\'s real stops', () => {
+    expect(isQuickStopId(newQuickStopId())).toBe(true);
+    expect(isQuickStopId('64b0c0ffee0000000000abcd')).toBe(false);
+    const real = [stop('a', 0, 9), stop('b', 4, 11)];
+    const q = quickDayStops([quick('quick:1', 2), quick('quick:2', 3)], real);
+    expect(q[0].start).toBeGreaterThan(at(11));
+    expect(q[1].start).toBeGreaterThan(q[0].start);
+    expect(q.every((s) => s.hasEnd && s.point)).toBe(true);
+  });
+
+  it('are ordered into the drive and hold their minutes', () => {
+    const real = [stop('a', 0, 9), stop('b', 10, 10)];
+    const withQuick = [...real, ...quickDayStops([quick('quick:1', 5, 45)], real)];
+    const plan = planDayRoute(withQuick, { origin: p(-1) });
+    expect(plan.stops.map((s) => s.id)).toEqual(['a', 'quick:1', 'b']);
+    const [, lunch, b] = plan.stops;
+    expect(lunch.end.getTime() - lunch.start.getTime()).toBe(45 * 60_000);
+    expect(b.start.getTime()).toBeGreaterThanOrEqual(lunch.end.getTime());
+  });
+
+  it('are never among the changes that get saved', () => {
+    const real = [stop('a', 0, 9), stop('b', 10, 10)];
+    const plan = planDayRoute([...real, ...quickDayStops([quick('quick:1', 5)], real)], { origin: p(-1) });
+    expect(plan.stops.find((s) => s.id === 'quick:1')!.changed).toBe(true);
+    expect(realChanges(plan).some((s) => isQuickStopId(s.id))).toBe(false);
+    expect(realChanges(plan).map((s) => s.id)).toContain('b');
+  });
+
+  it('leave a day that was already in order with nothing to save', () => {
+    const first = planDayRoute([stop('a', 0, 9), stop('b', 4, 10)], { origin: p(-1), startAt: at(9) });
+    const settled = first.stops.map((r) => ({ id: r.id, start: r.start.getTime(), minutes: 30, hasEnd: true, point: r.id === 'a' ? p(0) : p(4) }));
+    expect(realChanges(planDayRoute(settled, { origin: p(-1), startAt: at(9) }))).toHaveLength(0);
   });
 });

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import {
-  shouldAutoLocate, readLastPosition, rememberPosition, locationWasOk, forgetLocationOk, locationPermission
+  shouldAutoLocate, readLastPosition, rememberPosition, locationWasOk, locationWasRefused, forgetLocationOk, locationPermission
 } from './geolocationAccess';
 
 const store = new Map();
@@ -17,14 +17,26 @@ afterEach(() => vi.unstubAllGlobals());
 describe('shouldAutoLocate', () => {
   it('follows quietly when the browser says it is allowed', () => {
     expect(shouldAutoLocate('granted', false)).toBe(true);
+    expect(shouldAutoLocate('granted', true)).toBe(true);
   });
-  it('never asks when the browser says to prompt or has been told no', () => {
+  it('asks as the map opens when the browser says to prompt or cannot say', () => {
+    expect(shouldAutoLocate('prompt', false)).toBe(true);
+    expect(shouldAutoLocate('unknown', false)).toBe(true);
+  });
+  it('never asks when the browser says denied, nor again after a refusal', () => {
+    expect(shouldAutoLocate('denied', false)).toBe(false);
     expect(shouldAutoLocate('prompt', true)).toBe(false);
-    expect(shouldAutoLocate('denied', true)).toBe(false);
+    expect(shouldAutoLocate('unknown', true)).toBe(false);
   });
-  it('trusts an earlier success only on a browser that cannot say', () => {
-    expect(shouldAutoLocate('unknown', true)).toBe(true);
-    expect(shouldAutoLocate('unknown', false)).toBe(false);
+});
+
+describe('a refusal', () => {
+  it('is remembered until a fix works again', () => {
+    expect(locationWasRefused()).toBe(false);
+    forgetLocationOk();
+    expect(locationWasRefused()).toBe(true);
+    rememberPosition({ lat: 47.6, lng: -122.3 });
+    expect(locationWasRefused()).toBe(false);
   });
 });
 

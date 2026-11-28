@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { GoogleMap, Marker, Polyline, TrafficLayer } from '@react-google-maps/api';
 import { Lasso, LocateFixed } from 'lucide-react';
@@ -10,10 +10,13 @@ import CustomersPanel from '../panels/CustomersPanel';
 import SchedulePanel from '../panels/SchedulePanel';
 import PinLayer from './PinLayer';
 import LeadPanel from './LeadPanel';
-import { leadMarkerIcon, usePinIcons } from './markerIcons';
+import { leadMarkerIcon, numberedLeadIcon, usePinIcons } from './markerIcons';
 import { useMapView } from './useMapView';
 import { useDrawGestures } from './useDrawGestures';
 import { useDirections } from './useDirections';
+import { leadsInShape } from '../leadsInShape';
+import type { AreaLeadSearch } from '../panels/AreaLeads';
+import type { LeadPinsView } from '../leadsPhone/useLeadsPhone';
 import type { CustomerOption } from '../../../utils/customerOptions';
 import type {
     ColorMode, DrawMode, LatLng, Lead, MapPin as Customer, Pin, RecencyBucket, RecencyColors, RepOption, ReturnPanel,
@@ -70,7 +73,11 @@ export type MapCanvasProps = DayScheduleProps & {
     onSelectPin: (pin: Customer, origin?: ReturnPanel) => void;
     leadResults: Lead[];
     leadInfo: Lead | null;
-    onSelectLead: (place: Lead) => void;
+    onSelectLead: (place: Lead, origin?: 'tools' | null) => void;
+    /** The phone's lead search: which results wear a number, which one is open, which were saved. */
+    leadPins?: LeadPinsView;
+    /** The lead search, so the Tools panel can run it inside the drawn shape. */
+    leadSearch: AreaLeadSearch;
     onCloseLeadInfo: () => void;
     onSaveLead: (place: Lead) => void;
     savingLead: boolean;
@@ -136,7 +143,7 @@ const MapCanvas = ({
     myPosition,
     unselectedPins, orderById,
     info, onSelectPin,
-    leadResults, leadInfo, onSelectLead, onCloseLeadInfo, onSaveLead, savingLead, canSaveLead, leadError,
+    leadResults, leadInfo, onSelectLead, leadPins, onCloseLeadInfo, leadSearch, onSaveLead, savingLead, canSaveLead, leadError,
     replaceExisting, onReplaceExistingChange, onClearPlannedDay,
     showFilterPanel, onCloseFilterPanel,
     types, activeTypes, typeCounts, onToggleType, onToggleAllTypes,
@@ -169,6 +176,7 @@ const MapCanvas = ({
     const { lassoPreviewCount } = useDrawGestures({ mapRef, mapReady, drawMode, selectionShape, onRadiusSelect, onLassoSelect, selectedPins, unselectedPins });
     const { path: routePath, directionsRequest } = useDirections({ day, origin, mapReady });
     const markerIcon = usePinIcons(colors, colorMode);
+    const leadsInArea = useMemo(() => leadsInShape(leadResults || [], selectionShape), [leadResults, selectionShape]);
 
     return (
         <div className="rpv2-map">
@@ -285,15 +293,20 @@ const MapCanvas = ({
                     {/* Lead-search results — a small, transient set, never
                         merged into selectedPins/unselectedPins since these
                         aren't CRM data until someone actually saves one. */}
-                    {leadResults?.map(place => (
-                        <Marker
-                            key={place.placeId}
-                            position={place.coordinates}
-                            icon={leadMarkerIcon()}
-                            title={place.name}
-                            onClick={() => onSelectLead(place)}
-                        />
-                    ))}
+                    {leadResults?.filter(place => !leadPins?.hiddenIds.has(place.placeId)).map(place => {
+                        const n = leadPins?.numberOf.get(place.placeId);
+                        const open = leadPins?.selectedId === place.placeId;
+                        return (
+                            <Marker
+                                key={place.placeId}
+                                position={place.coordinates}
+                                icon={n ? numberedLeadIcon(n, open) : leadMarkerIcon()}
+                                zIndex={open ? 1000 : undefined}
+                                title={place.name}
+                                onClick={() => onSelectLead(place)}
+                            />
+                        );
+                    })}
                 </GoogleMap>
             )}
 
@@ -337,6 +350,15 @@ const MapCanvas = ({
                     saved={saved}
                     scheduleOpen={scheduleOpen}
                     onToggleSchedule={() => setScheduleOpen(v => !v)}
+                    leads={{
+                        shape: selectionShape,
+                        leads: leadsInArea,
+                        search: leadSearch,
+                        onSelect: (lead) => onSelectLead(lead, 'tools'),
+                        onSave: onSaveLead,
+                        saving: savingLead,
+                        canSave: canSaveLead
+                    }}
                 />
             )}
 

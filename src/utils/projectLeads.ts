@@ -1,5 +1,5 @@
 /**
- * Project leads (2026-11-20, on `feat/project-leads`): construction projects from a
+ * Multifamily leads (2026-11-20, on `feat/project-leads`): construction projects from a
  * ConstructConnect export, with the companies on each (architect, owner, general
  * contractor…), so sales can contact them to onboard or send samples to specify our
  * stone. Rules shared by the server (import, list) and the screen.
@@ -279,7 +279,7 @@ export function customerPrefillForCompany(
     address: { street: titleCase(c.address), city: titleCase(c.city), state: c.state, zipCode: c.zip.slice(0, 5) },
     ...(type ? { customerType: type } : {}),
     status: 'New Lead',
-    notes: [`${roleLabel(c.role)} on “${project.title}”${place ? ` (${place})` : ''}`, 'Added from Project Leads'].join(' · ')
+    notes: [`${roleLabel(c.role)} on “${project.title}”${place ? ` (${place})` : ''}`, 'Added from Multifamily Leads'].join(' · ')
   };
 }
 

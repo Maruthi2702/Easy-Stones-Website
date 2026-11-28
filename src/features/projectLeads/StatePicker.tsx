@@ -3,7 +3,7 @@ import { ChevronDown } from 'lucide-react';
 import { statesSummary } from '../../utils/projectLeads';
 
 /**
- * Project Leads' State filter: one dropdown that ticks several states (owner, 2026-11-20, on every screen
+ * Multifamily Leads' State filter: one dropdown that ticks several states (owner, 2026-11-20, on every screen
  * size). The list opens **inline under its field** and pushes the fields below it down, instead of floating:
  * the desktop Filters panel and the phone sheet both scroll, and a floating list would be clipped by them.
  */

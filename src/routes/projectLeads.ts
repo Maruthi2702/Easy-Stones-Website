@@ -2,6 +2,9 @@ import type { RequestHandler } from 'express';
 import express from 'express';
 import multer from 'multer';
 import * as leads from '../db/projectLeads/index.ts';
+import * as companies from '../db/projectLeads/companies.ts';
+import type { CompanyFilter } from '../db/projectLeads/companies.ts';
+import { isCompanyRole, isCompanySort } from '../utils/projectLeadCompanies.ts';
 import { SORTS, type LeadFilter, type Sort } from '../db/projectLeads/index.ts';
 import { runWorkbookParse } from '../utils/runWorkbookParse.ts';
 import { isLeadStatus, type LeadStatus, type ReadLeads } from '../utils/projectLeads.ts';
@@ -9,7 +12,7 @@ import { canViewProjectLeads, canEditProjectLeads, canImportProjectLeads, canExp
 import { teamOfRequest } from '../services/teamDirectory.ts';
 
 /**
- * Project leads (2026-11-20, src/utils/projectLeads.ts) — mounted at /api/project-leads.
+ * Multifamily leads (2026-11-20, src/utils/projectLeads.ts) — mounted at /api/project-leads.
  *
  *   GET   /meta       what the filters offer (states, stages, cities, assignees) and the last import
  *   GET   /           one page (limit ≤ 100) of projects with their companies, the total and the count per status
@@ -23,6 +26,13 @@ import { teamOfRequest } from '../services/teamDirectory.ts';
  *   POST  /import/preview  multipart `file`: what that export would add, refresh and drop (writes nothing)
  *   POST  /import     multipart `file`: a ConstructConnect export; adds new projects and refreshes known ones
  *   POST  /import/:id/undo  puts the latest import back as it was (once)
+ *
+ *   GET   /companies       one page of **companies** (one row per company across its projects), the total, the count per
+ *                          status and per role. Same filters as the projects list plus role=contractor|architect|designer|owner;
+ *                          status / assignedTo / reachable are about the company. sort: updated_desc, projects_desc, value_desc, name_asc
+ *   GET   /companies/export  the same filters, up to 5,000 companies
+ *   GET   /company?key=    one company: its projects, its people, its history
+ *   PATCH /company?key=    { status?, note?, assignedTo? } — the company's own work, same take / release rules as a project
  *
  * Filters: q, states (comma list), city, stage, subcategory, status, assignedTo (a name, or "none"),
  * minValue, updatedFrom (YYYY-MM-DD), reachable=1, sort. Every route checks its own permission
@@ -73,6 +83,24 @@ export function filterOf(query: Record<string, unknown>): LeadFilter {
   return f;
 }
 
+/** The company list's filters: the projects list's, plus a role and the company sorts. Throws a message the client can show. */
+export function companyFilterOf(query: Record<string, unknown>): CompanyFilter {
+  const { sort, ...rest } = query;
+  const base = filterOf(rest);
+  const f: CompanyFilter = { ...base, sort: undefined };
+  const role = one(query.role);
+  if (role) {
+    if (!isCompanyRole(role)) throw new Error('Unknown role.');
+    f.role = role;
+  }
+  const s = one(sort);
+  if (s) {
+    if (!isCompanySort(s)) throw new Error('Unknown sort.');
+    f.sort = s;
+  }
+  return f;
+}
+
 export default function createProjectLeadsRouter({ authenticate }: { authenticate: RequestHandler }) {
   const router = express.Router();
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_FILE, files: 1 } });
@@ -88,19 +116,19 @@ export default function createProjectLeadsRouter({ authenticate }: { authenticat
   };
   const refuse = (res: express.Response, what: string) => res.status(403).json({ message: `Your role can’t ${what}.` });
   const failed = (res: express.Response, err: unknown, what: string) => {
-    console.error(`Project leads ${what}:`, err);
+    console.error(`Multifamily leads ${what}:`, err);
     res.status(500).json({ message: `Could not ${what}.` });
   };
 
   router.get('/meta', authenticate, async (req, res) => {
-    if (!canViewProjectLeads(req.user)) return refuse(res, 'see project leads');
+    if (!canViewProjectLeads(req.user)) return refuse(res, 'see multifamily leads');
     try {
       res.json({ ...(await leads.leadMeta()), canEdit: canEditProjectLeads(req.user), canImport: canImportProjectLeads(req.user), canExport: canExportProjectLeads(req.user) });
-    } catch (err) { failed(res, err, 'load project leads'); }
+    } catch (err) { failed(res, err, 'load multifamily leads'); }
   });
 
   router.get('/', authenticate, async (req, res) => {
-    if (!canViewProjectLeads(req.user)) return refuse(res, 'see project leads');
+    if (!canViewProjectLeads(req.user)) return refuse(res, 'see multifamily leads');
     let filter: LeadFilter;
     try { filter = filterOf(req.query); } catch (err) { return res.status(400).json({ message: (err as Error).message }); }
     const limit = Math.min(Math.max(Math.trunc(Number(req.query.limit)) || 50, 1), MAX_LIMIT);
@@ -108,16 +136,16 @@ export default function createProjectLeadsRouter({ authenticate }: { authenticat
     try {
       const page_ = await leads.listLeads({ ...filter, limit, offset: (page - 1) * limit });
       res.json({ ...page_, items: await withAccess(req, page_.items) });
-    } catch (err) { failed(res, err, 'load project leads'); }
+    } catch (err) { failed(res, err, 'load multifamily leads'); }
   });
 
   router.get('/export', authenticate, async (req, res) => {
-    if (!canExportProjectLeads(req.user)) return refuse(res, 'export project leads');
+    if (!canExportProjectLeads(req.user)) return refuse(res, 'export multifamily leads');
     let filter: LeadFilter;
     try { filter = filterOf(req.query); } catch (err) { return res.status(400).json({ message: (err as Error).message }); }
     try {
       res.json(await leads.listLeads({ ...filter, limit: MAX_EXPORT, offset: 0 }));
-    } catch (err) { failed(res, err, 'export project leads'); }
+    } catch (err) { failed(res, err, 'export multifamily leads'); }
   });
 
   /** Reads the uploaded workbook: answers the projects, or has already replied with the reason. */
@@ -141,7 +169,7 @@ export default function createProjectLeadsRouter({ authenticate }: { authenticat
 
   // Step 1 → 2 of Import: what the file would add, refresh and drop. Writes nothing.
   router.post('/import/preview', authenticate, (req, res) => {
-    if (!canImportProjectLeads(req.user)) return refuse(res, 'import project leads');
+    if (!canImportProjectLeads(req.user)) return refuse(res, 'import multifamily leads');
     readUpload(req, res, async (read) => {
       try {
         res.json({ ...(await leads.previewImport(read.projects)), skippedRows: read.skippedRows });
@@ -150,13 +178,13 @@ export default function createProjectLeadsRouter({ authenticate }: { authenticat
   });
 
   router.post('/import', authenticate, (req, res) => {
-    if (!canImportProjectLeads(req.user)) return refuse(res, 'import project leads');
+    if (!canImportProjectLeads(req.user)) return refuse(res, 'import multifamily leads');
     readUpload(req, res, async (read, fileName) => {
       try {
         const done = await leads.importProjects({ projects: read.projects, fileName, by: who(req) });
         res.json({ ...done, skippedRows: read.skippedRows });
       } catch (err) {
-        console.error('Project leads import error:', err);
+        console.error('Multifamily leads import error:', err);
         res.status(500).json({ message: 'The import failed. Nothing was changed.' });
       }
     });
@@ -170,13 +198,86 @@ export default function createProjectLeadsRouter({ authenticate }: { authenticat
       if (!done) return res.status(409).json({ message: 'Only the latest import can be undone, and only once.' });
       res.json(done);
     } catch (err) {
-      console.error('Project leads undo error:', err);
+      console.error('Multifamily leads undo error:', err);
       res.status(500).json({ message: 'The undo failed. Nothing was changed.' });
     }
   });
 
+  router.get('/companies', authenticate, async (req, res) => {
+    if (!canViewProjectLeads(req.user)) return refuse(res, 'see multifamily leads');
+    let filter: CompanyFilter;
+    try { filter = companyFilterOf(req.query); } catch (err) { return res.status(400).json({ message: (err as Error).message }); }
+    const limit = Math.min(Math.max(Math.trunc(Number(req.query.limit)) || 50, 1), MAX_LIMIT);
+    const page = Math.max(Math.trunc(Number(req.query.page)) || 1, 1);
+    try {
+      const out = await companies.listCompanies({ ...filter, limit, offset: (page - 1) * limit });
+      res.json({ ...out, items: await withAccess(req, out.items) });
+    } catch (err) { failed(res, err, 'load companies'); }
+  });
+
+  router.get('/companies/export', authenticate, async (req, res) => {
+    if (!canExportProjectLeads(req.user)) return refuse(res, 'export multifamily leads');
+    let filter: CompanyFilter;
+    try { filter = companyFilterOf(req.query); } catch (err) { return res.status(400).json({ message: (err as Error).message }); }
+    try {
+      res.json(await companies.listCompanies({ ...filter, limit: MAX_EXPORT, offset: 0 }));
+    } catch (err) { failed(res, err, 'export companies'); }
+  });
+
+  router.get('/company', authenticate, async (req, res) => {
+    if (!canViewProjectLeads(req.user)) return refuse(res, 'see multifamily leads');
+    const key = one(req.query.key);
+    if (!key) return res.status(400).json({ message: 'Choose a company.' });
+    try {
+      const company = await companies.getCompany(key);
+      if (!company) return res.status(404).json({ message: 'Company not found.' });
+      res.json((await withAccess(req, [company]))[0]);
+    } catch (err) { failed(res, err, 'load the company'); }
+  });
+
+  router.patch('/company', authenticate, async (req, res) => {
+    if (!canEditProjectLeads(req.user)) return refuse(res, 'change multifamily leads');
+    const key = one(req.query.key);
+    if (!key) return res.status(400).json({ message: 'Choose a company.' });
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const change: { status?: LeadStatus; note?: string; assignedTo?: string; assignedToId?: string } = {};
+    if (body.status !== undefined) {
+      if (!isLeadStatus(body.status)) return res.status(400).json({ message: 'Unknown status.' });
+      change.status = body.status;
+    }
+    if (body.note !== undefined) {
+      if (typeof body.note !== 'string') return res.status(400).json({ message: 'The note must be text.' });
+      change.note = body.note.trim().slice(0, 2000);
+    }
+    if (body.assignedTo !== undefined && typeof body.assignedTo !== 'string') return res.status(400).json({ message: 'Choose a person from the list.' });
+    try {
+      if (body.assignedTo !== undefined) {
+        const current = await companies.getCompany(key);
+        if (!current) return res.status(404).json({ message: 'Company not found.' });
+        const user = userOf(req);
+        const mine = current.assignedToId ? current.assignedToId === user.id : current.assignedTo === who(req);
+        if (body.assignedTo.trim() !== '') {
+          // Taking is for yourself, and only while nobody else has it.
+          if (current.assignedTo && !mine) {
+            return res.status(409).json({ message: `${current.assignedTo} has this lead. They or their manager can release it first.` });
+          }
+          change.assignedTo = who(req);
+          change.assignedToId = user.id;
+        } else if (current.assignedTo) {
+          if (!canReleaseLead(user, current, await teamOfRequest(req))) {
+            return res.status(403).json({ message: `Only ${current.assignedTo} or their manager can release this lead.` });
+          }
+          change.assignedTo = '';
+        }
+      }
+      const company = await companies.updateCompany(key, change, who(req));
+      if (!company) return res.status(404).json({ message: 'Company not found.' });
+      res.json((await withAccess(req, [company]))[0]);
+    } catch (err) { failed(res, err, 'save the change'); }
+  });
+
   router.get('/:id', authenticate, async (req, res) => {
-    if (!canViewProjectLeads(req.user)) return refuse(res, 'see project leads');
+    if (!canViewProjectLeads(req.user)) return refuse(res, 'see multifamily leads');
     try {
       const lead = await leads.getLead(String(req.params.id));
       if (!lead) return res.status(404).json({ message: 'Project not found.' });
@@ -185,7 +286,7 @@ export default function createProjectLeadsRouter({ authenticate }: { authenticat
   });
 
   router.patch('/:id', authenticate, async (req, res) => {
-    if (!canEditProjectLeads(req.user)) return refuse(res, 'change project leads');
+    if (!canEditProjectLeads(req.user)) return refuse(res, 'change multifamily leads');
     const body = (req.body ?? {}) as Record<string, unknown>;
     const change: { status?: LeadStatus; note?: string; assignedTo?: string; assignedToId?: string } = {};
     if (body.status !== undefined) {

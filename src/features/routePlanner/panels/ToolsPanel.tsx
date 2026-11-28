@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Target, Circle, Lasso, X, CalendarPlus, ChevronUp, GripVertical } from 'lucide-react';
 import { nameOf } from '../helpers';
 import AreaScheduleSection from './AreaScheduleSection';
+import AreaLeads from './AreaLeads';
+import type { AreaLeadsProps } from './AreaLeads';
 import type { DayScheduleProps } from './AreaScheduleSection';
 import type { DrawMode, MapPin, RecencyColors, ReturnPanel } from '../types';
 import './ToolsPanel.css';
@@ -44,6 +46,8 @@ export type ToolsPanelProps = DayScheduleProps & {
     onSelectPin: (pin: MapPin, origin?: ReturnPanel) => void;
     scheduleOpen: boolean;
     onToggleSchedule: () => void;
+    /** The Leads tab: found leads inside the drawn shape, and the search that looks only there. */
+    leads: AreaLeadsProps;
 };
 
 const ToolsPanel = ({
@@ -53,13 +57,14 @@ const ToolsPanel = ({
     can, saving,
     date, onDateChange, startAt, onStartAtChange, stopMinutes, onStopMinutesChange,
     day, summary, onScheduleDay, replaceExisting, onReplaceExistingChange, onClearPlannedDay, saved,
-    scheduleOpen, onToggleSchedule
+    scheduleOpen, onToggleSchedule, leads
 }: ToolsPanelProps) => {
     // Which stop is mid-drag, and which row it's currently hovering over —
     // both null outside a drag. Local to this panel: the drop only needs to
     // report the two ids involved (see onReorderStop), not the whole gesture.
     const [dragId, setDragId] = useState<string | null>(null);
     const [overId, setOverId] = useState<string | null>(null);
+    const [view, setView] = useState<'customers' | 'leads'>('customers');
 
     return (
     <div className="rpv2-panel" data-dialog="tools">
@@ -97,14 +102,20 @@ const ToolsPanel = ({
             <p className="rpv2-tools-hint">
                 {mode === 'radius' && 'Click and drag on the map to draw a circle — everything inside it becomes the selection below.'}
                 {mode === 'lasso' && 'Click and drag to trace an outline — everything inside it becomes the selection below.'}
-                {!mode && 'Choose Radius or Lasso, then draw on the map to select customers.'}
+                {!mode && 'Choose Radius or Lasso, then draw on the map to select customers and list the leads inside.'}
             </p>
 
-            <div className="rpv2-tools-selected-head">
-                Selected customers ({selectedPins.length})
+            <div className="rpv2-tools-tabs" role="tablist">
+                <button type="button" role="tab" aria-selected={view === 'customers'} className={view === 'customers' ? 'is-on' : ''} onClick={() => setView('customers')}>
+                    Customers ({selectedPins.length})
+                </button>
+                <button type="button" role="tab" aria-selected={view === 'leads'} className={view === 'leads' ? 'is-on' : ''} onClick={() => setView('leads')}>
+                    Leads ({leads.leads.length})
+                </button>
             </div>
         </div>
 
+        {view === 'leads' ? <AreaLeads {...leads} /> : (
         <div className="rpv2-panel-list rpv2-tools-list">
             {selectedPins.length === 0 && (
                 <p className="rpv2-panel-list-empty">Nothing selected yet.</p>
@@ -180,6 +191,7 @@ const ToolsPanel = ({
                     );
                 })}
         </div>
+        )}
 
         {scheduleOpen && (
             <AreaScheduleSection

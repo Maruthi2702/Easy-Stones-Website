@@ -45,6 +45,23 @@ export const leadMarkerIcon = (): google.maps.Icon | undefined => {
     };
 };
 
+// The phone's lead search numbers its results 1, 2, 3… to match the sheet's list. The
+// one that's open is bigger and gold. Same silhouette and ring as leadMarkerIcon.
+export const numberedLeadIcon = (n: number, selected: boolean): google.maps.Icon | undefined => {
+    if (!window.google) return undefined;
+    const size = selected ? 46 : 38;
+    const fill = selected ? '#d4af37' : LEAD_PIN_COLOR;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">` +
+        `<path d="${PIN_PATH}" fill="${fill}" stroke="#20201f" stroke-width="1.4"/>` +
+        `<text x="12" y="${9 + stopNumberFontSize(n) * 0.36}" text-anchor="middle" font-size="${stopNumberFontSize(n)}" font-weight="700" ` +
+        `font-family="Inter,Arial,sans-serif" fill="#141413">${n}</text></svg>`;
+    return {
+        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+        scaledSize: new window.google.maps.Size(size, size),
+        anchor: new window.google.maps.Point(size / 2, size * (22 / 24))
+    };
+};
+
 // The fill and number colour a pin wears: its customer type, or how long since
 // the last visit, per the Filter's "colour pins by" switch.
 export const pinLook = (colors: RecencyColors, colorMode: ColorMode, pin: Customer): PinColors => {

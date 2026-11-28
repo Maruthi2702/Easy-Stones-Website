@@ -58,8 +58,8 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'holds', label: 'Holds', section: 'sales', canSee: (u: NavUser) => HOLD_VIEW_PERMISSIONS.some((p) => has(u, p)) },
   // Permits (src/permits/): building permits as sales leads; the permission is the only key.
   { id: 'permits', label: 'Permits', section: 'sales', canSee: (u: NavUser) => has(u, PERMITS.VIEW) },
-  // Project Leads (src/features/projectLeads/): construction projects from ConstructConnect and who to contact; the permission is the only key.
-  { id: 'project_leads', label: 'Project Leads', section: 'sales', canSee: (u: NavUser) => canViewProjectLeads(u) },
+  // Multifamily Leads (src/features/projectLeads/): construction projects from ConstructConnect and who to contact; the permission is the only key.
+  { id: 'project_leads', label: 'Multifamily Leads', section: 'sales', canSee: (u: NavUser) => canViewProjectLeads(u) },
   // Team Files (src/features/teamFiles/): was the dashboard's Resources → Team Files, so it opens with the Dashboard.
   { id: 'team_files', label: 'Team Files', section: 'sales', canSee: (u: NavUser) => has(u, 'view_dashboard') },
   // Credit Card Receipts (src/features/cardReceipts/): any of its switches opens it. In Sales since 2026-11-19 (owner's ask; was Accounting).
@@ -67,6 +67,11 @@ export const NAV_ITEMS: NavItem[] = [
   {
     id: 'lost_sales', label: 'Lost Sales', section: 'sales',
     canSee: (u: NavUser) => canViewLostSales(u) || !u
+  },
+  // Crossover Sheet: in Sales since 2026-11-27 (owner's ask; was Products). Same page id and permission.
+  {
+    id: 'crossover_sheet', label: 'Crossover Sheet', section: 'sales',
+    canSee: (u: NavUser) => has(u, 'view_crossover_sheet') || isAdmin(u) || !u
   },
   {
     id: 'delivery_schedule', label: 'Delivery Schedule', section: 'operations',
@@ -83,10 +88,6 @@ export const NAV_ITEMS: NavItem[] = [
   {
     id: 'inventory_analysis', label: 'Inventory Analysis', section: 'products',
     canSee: (u: NavUser) => has(u, 'view_inventory_analysis') || isAdmin(u) || !u
-  },
-  {
-    id: 'crossover_sheet', label: 'Crossover Sheet', section: 'products',
-    canSee: (u: NavUser) => has(u, 'view_crossover_sheet') || isAdmin(u) || !u
   },
   // Incoming Material (src/features/suppliers/incoming/): approved supplier
   // bundles on their way — photos and sizes, no prices, supplier or PO.
@@ -121,6 +122,8 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'team_location', label: 'Team Location', section: 'admin', canSee: (u: NavUser) => canViewTeamLocations(u) || canViewLocationAudit(u) },
   // An admin sends a short message to people's iPhones (src/features/notifications/); the `send_notifications` switch is the only key.
   { id: 'send_notification', label: 'Send Notification', section: 'admin', canSee: (u: NavUser) => canSendNotifications(u) },
+  // The way into the app's speech test (src/features/voiceTest/): admins only, a measuring tool for the voice assistant.
+  { id: 'voice_test', label: 'Voice Test', section: 'admin', canSee: (u: NavUser) => isAdmin(u) },
   // The side nav's order for everyone (NavOrderTab.jsx); saving needs the same permission.
   { id: 'nav_order', label: 'Side Nav Order', section: 'admin', canSee: (u: NavUser) => can(u, NAV_ORDER) }
 ];

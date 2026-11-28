@@ -1,5 +1,5 @@
 /**
- * Reads a ConstructConnect export workbook for Project Leads: the "Design Team" sheet (else the
+ * Reads a ConstructConnect export workbook for Multifamily Leads: the "Design Team" sheet (else the
  * first), plus the "Custom" sheet when there is one. Synchronous and CPU-bound, so the server runs
  * it in a worker thread (runWorkbookParse.ts, kind 'project-leads'); the rules are in projectLeads.ts.
  */

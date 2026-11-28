@@ -1,0 +1,6 @@
+.pl-mapsapp { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 10px 8px; }
+.pl-mapsapp-label { font-size: .72rem; color: var(--pl-muted, var(--fm-mut, inherit)); margin-right: 2px; }
+.pl-mapsapp-btn { min-height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--pl-line, var(--fm-bd2, rgba(128,128,128,.35))); background: transparent; color: inherit; font: inherit; font-size: .78rem; cursor: pointer; }
+.pl-mapsapp-btn.is-on { border-color: var(--pl-gold, var(--fm-gold, #e5c04a)); color: var(--pl-gold, var(--fm-gold-tx, inherit)); font-weight: 600; }
+.pl-actions-list .pl-mapsapp { padding: 2px 16px 10px; gap: 8px; }
+.pl-actions-list .pl-mapsapp-btn { min-height: 40px; padding: 0 14px; font-size: .86rem; }

@@ -1,5 +1,5 @@
 /**
- * Project leads (src/utils/projectLeads.ts): the data layer. Postgres only.
+ * Multifamily leads (src/utils/projectLeads.ts): the data layer. Postgres only.
  *
  * An import adds new projects and refreshes ConstructConnect's fields on the ones it
  * already has (matched by Project Id), replacing their companies; status, assignee,

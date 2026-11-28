@@ -1,6 +1,6 @@
 import {
     LayoutDashboard, User, Clock, Truck, Map as MapIcon, ClipboardList, Tag, TrendingDown, ArrowLeftRight, Boxes,
-    Users, Briefcase, Warehouse, ExternalLink, Layers, Shield, Calculator, Lock, HardHat, Building2, ShieldCheck, MapPin, ArrowUpDown, ListOrdered, Package, Receipt, Fuel, FolderOpen, Wallet, CreditCard, Tags, PackageCheck, Ship, MapPinned, BellRing
+    Users, Briefcase, Warehouse, ExternalLink, Layers, Shield, Calculator, Lock, HardHat, Building2, ShieldCheck, MapPin, ArrowUpDown, ListOrdered, Package, Receipt, Fuel, FolderOpen, Wallet, CreditCard, Tags, PackageCheck, Ship, MapPinned, BellRing, Mic
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -36,6 +36,7 @@ export const ITEM_ICONS: Readonly<Record<string, LucideIcon>> = {
     receipt_categories: Tags,
     team_location: MapPinned,
     send_notification: BellRing,
+    voice_test: Mic,
     supplier_pos: PackageCheck,
     incoming_material: Ship,
     live_inventory: ExternalLink

@@ -327,11 +327,11 @@ export const PAGE_PERMISSIONS: PageDef[] = [
             { key: PERMITS.REFRESH, label: 'Refresh now', icon: RefreshCw, desc: 'Run the morning pull on demand, and see each source’s run details' }
         ]
     },
-    // Project Leads (src/utils/projectLeadAccess.ts, 2026-11-20): admin only to start;
+    // Multifamily Leads (src/utils/projectLeadAccess.ts, 2026-11-20): admin only to start;
     // an admin decides here who else sees them.
     {
         id: 'project_leads',
-        page: 'Project Leads',
+        page: 'Multifamily Leads',
         icon: Building2,
         description: 'Construction projects from ConstructConnect, with the owners, architects and contractors on them, for sales to contact',
         color: '#0e7490',

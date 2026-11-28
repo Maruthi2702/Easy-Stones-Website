@@ -7,6 +7,7 @@ import { trapTab } from '../../../components/shared/form/formFocus';
 import type { PlannerItem } from '../plannerSchedule';
 import { customerName, timeLabel } from '../salesPlanner';
 import { customerIdOfStop, prepareDirections } from '../directions';
+import MapsAppRow from './MapsAppRow';
 
 export default function PlannerActionsSheet({ item, onClose, onViewDetails, onOpenCustomer, onDirections, onEdit, onDelete, onOpenCalendar }: {
     item: PlannerItem;
@@ -57,6 +58,7 @@ export default function PlannerActionsSheet({ item, onClose, onViewDetails, onOp
                 {item.notes && <div className="pl-actions-note"><span>Note</span><p>{item.notes}</p></div>}
                 <div className="fm-sheet-body pl-actions-list">
                     {onDirections && <button type="button" className="fm-opt pl-actions-directions" onClick={() => choose(onDirections)}><Navigation size={18} /> Directions</button>}
+                    {onDirections && <MapsAppRow item={item} onDone={onClose} />}
  {onViewDetails && <button type="button" className="fm-opt" onClick={() => choose(onViewDetails)}><Info size={18} /> View details</button>}
                     {onOpenCustomer && <button type="button" className="fm-opt" onClick={() => choose(onOpenCustomer)}><ExternalLink size={18} /> Open profile</button>}
                     {onOpenCalendar && <button type="button" className="fm-opt" onClick={() => choose(onOpenCalendar)}><CalendarDays size={18} /> Edit in Calendar</button>}

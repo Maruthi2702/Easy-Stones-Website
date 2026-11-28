@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { MutableRefObject } from 'react';
-import { readLastPosition, rememberPosition, forgetLocationOk, locationWasOk, locationPermission, shouldAutoLocate } from '../../utils/geolocationAccess';
+import { readLastPosition, rememberPosition, forgetLocationOk, locationWasRefused, locationPermission, shouldAutoLocate } from '../../utils/geolocationAccess';
 import { milesBetween } from '../../utils/routePlan';
 import type { LatLng } from './types';
 
@@ -12,11 +12,10 @@ export type MyLocationDeps = {
 };
 
 /**
- * Where the rep is. Location, without asking on every visit
- * (src/utils/geolocationAccess.js): nothing prompts on its own, the map opens
- * on the last known spot, and only a tap on Locate asks. Once the browser has
- * it allowed (or an earlier fix worked on a browser that can't say) the
- * position is followed quietly.
+ * Where the rep is. Shown as soon as the map opens (src/utils/geolocationAccess.ts):
+ * the map opens on the last known spot and asks for the position once — the
+ * browser's own prompt the first time — then follows it quietly. A refusal is
+ * remembered (no asking on every visit); a tap on Locate asks again.
  */
 export function useMyLocation({ mapRef, isActive, setError }: MyLocationDeps) {
     const [origin, setOrigin] = useState<LatLng | null>(null);
@@ -30,7 +29,7 @@ export function useMyLocation({ mapRef, isActive, setError }: MyLocationDeps) {
         (async () => {
             const state = await locationPermission();
             if (gone) return;
-            if (shouldAutoLocate(state, locationWasOk())) setAutoLocate(true);
+            if (shouldAutoLocate(state, locationWasRefused())) setAutoLocate(true);
             try {
                 // Allowed or switched off in the browser's settings while this is open.
                 status = await navigator.permissions.query({ name: 'geolocation' });

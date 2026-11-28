@@ -31,6 +31,27 @@ export type DayStop = {
 
 export type RouteMode = 'all' | 'fixed';
 
+/**
+ * A quick stop: a place on the day that isn't a customer (lunch, fuel, a prospect not saved yet).
+ * It is ordered into the drive and holds its minutes, but it is never written to the calendar.
+ */
+export type QuickStop = { id: string; label: string; address: string; point: LatLng; minutes: number };
+
+const QUICK_PREFIX = 'quick:';
+export const QUICK_STOP_LIMIT = 5;
+export const isQuickStopId = (id: string): boolean => id.startsWith(QUICK_PREFIX);
+export const newQuickStopId = (): string => `${QUICK_PREFIX}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+/** The quick stops as day stops. They start after the real ones, so where they land in the order is the planner's choice. */
+export const quickDayStops = (quick: QuickStop[], real: DayStop[]): DayStop[] => {
+  const last = real.reduce((latest, s) => Math.max(latest, s.start), 0);
+  return quick.map((q, i) => ({ id: q.id, start: last + (i + 1) * 60_000, minutes: q.minutes, hasEnd: true, point: q.point }));
+};
+
+/** What applying a plan saves: its real stops that moved. A quick stop never counts, and is never written. */
+export const realChanges = (plan: Pick<RoutePlan, 'stops'>) => plan.stops.filter((s) => s.changed && !isQuickStopId(s.id));
+
+
 export type RoutedStop = {
   id: string;
   start: Date;
