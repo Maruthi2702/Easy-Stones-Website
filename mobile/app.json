@@ -63,7 +63,14 @@
       "expo-notifications",
       "expo-splash-screen",
       "expo-asset",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Easy Surfaces uses the microphone so you can speak a visit instead of typing it.",
+          "speechRecognitionPermission": "Easy Surfaces turns what you say into text so you can log a visit by talking."
+        }
+      ]
     ]
   }
 }

@@ -2296,3 +2296,17 @@ metadata remains. Transactions require a replica set.
 
 The ordered inventory correction and TypeScript migration plan, including
 identified UX changes, is in `INVENTORY_MODULE_PLAN.md`.
+
+## Voice assistant: phase 0, nothing live yet (2026-11-27, on `feat/voice-assistant-phase0`)
+
+Plan: log a visit by talking (owner approved 2026-11-27: a small round mic above the gold +, admins / directors / managers first,
+**no transcripts stored** — only counts and cost — and visits marked "logged by voice"; design in the claude.ai canvas of the same name,
+memory `voice-assistant-plan`). **Only the building blocks are on main, none of it reachable by a user:** `src/utils/assistantVisit.ts`
+(tested: the schema, prompt, cleaning and `nextQuestion` — Claude only **extracts**, the visit is still saved by the ordinary
+`POST /api/customers/:id/visits` with its `loggedFrom` reading), `src/services/visitExtract.ts` (the Claude call, Haiku by default,
+`VISIT_EXTRACT_MODEL` overrides; no route calls it yet), `scripts/voice-extract-test.ts` (typed benchmark: Haiku ≈ Sonnet) and
+`docs/voice-words-DRAFT.md` (stone / brand / branch words for the recognizer, section F for slang is the owner's to fill).
+**The speech test** (`mobile/src/speechTest/`, opened in the app by the link `easysurfaces://speech-test`; `expo-speech-recognition`
+in `mobile/`) measures how well a real iPhone hears our words with hints on/off and on-device vs Apple servers — **never run on a real
+phone yet**; its result decides whether hints, Claude correcting the transcript, or server-side transcription is needed. It needs a new
+app build (`npx expo run:ios --device`); build 13 in App Review doesn't have it.

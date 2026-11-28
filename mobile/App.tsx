@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import * as Linking from 'expo-linking';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import LoginScreen from './src/auth/LoginScreen';
 import { hasValidSession } from './src/auth/signIn';
 import WebHost from './src/WebHost';
 import LocationConsent from './src/location/LocationConsent';
+import SpeechTestScreen from './src/speechTest/SpeechTestScreen';
 
 type Screen = 'checking' | 'login' | 'web';
 
@@ -17,6 +19,10 @@ type Screen = 'checking' | 'login' | 'web';
 export default function App() {
   const [screen, setScreen] = useState<Screen>('checking');
   const [afterSignOut, setAfterSignOut] = useState(false);
+  // easysurfaces://speech-test opens a throw-away screen that measures how well the phone hears our words (src/speechTest).
+  const url = Linking.useURL();
+  const [speechTestClosedFor, setSpeechTestClosedFor] = useState<string | null>(null);
+  const showSpeechTest = !!url && /speech-test/.test(url) && speechTestClosedFor !== url;
 
   useEffect(() => { void hasValidSession().then((ok) => setScreen(ok ? 'web' : 'login')); }, []);
 
@@ -32,8 +38,9 @@ export default function App() {
       )}
       {/* The phone's own location screens (agreement, "location is off"), over the website. */}
       <LocationConsent active={screen === 'web'} />
+      {showSpeechTest ? <View style={styles.overlay}><SpeechTestScreen onClose={() => setSpeechTestClosedFor(url)} /></View> : null}
     </SafeAreaProvider>
   );
 }
 
-const styles = StyleSheet.create({ root: { flex: 1, backgroundColor: '#000000' }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' } });
+const styles = StyleSheet.create({ overlay: { ...StyleSheet.absoluteFill, backgroundColor: '#0f0e0c' }, root: { flex: 1, backgroundColor: '#000000' }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' } });
