@@ -95,7 +95,18 @@ export type ReadLeads = { projects: LeadProject[]; problems: string[]; skippedRo
 
 type Cells = Record<string, unknown>;
 
-const text = (v: unknown) => (v == null ? '' : String(v).trim());
+const NAMED_ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+
+/** The export writes names HTML-escaped ("Gorman &amp; Company Inc."); the screens show them as typed. One pass only. */
+export function decodeEntities(s: string): string {
+  return s.replace(/&(?:#(\d{1,7})|#x([0-9a-f]{1,6})|([a-z]+));/gi, (whole, dec, hex, name) => {
+    if (name) return NAMED_ENTITIES[name.toLowerCase()] ?? whole;
+    const code = dec ? Number(dec) : parseInt(hex, 16);
+    return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole;
+  });
+}
+
+const text = (v: unknown) => (v == null ? '' : decodeEntities(String(v)).trim());
 const number = (v: unknown): number | null => {
   const s = text(v).replace(/[$,]/g, '');
   if (!s) return null;
