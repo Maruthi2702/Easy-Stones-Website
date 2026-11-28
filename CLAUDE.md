@@ -1280,8 +1280,12 @@ answers with what it found and can keep a saved lead on the list), rules in `lea
 numbered nearest the map's centre first, and the pins wear the same numbers (`numberedLeadIcon`, `MapCanvas`'s `leadPins`).
 A lead's row: Call, **+** (saves it as a New Lead, same as the Tools panel's list) — a saved lead stays on the list as
 **Saved** and its pin goes (the new customer pin replaces it). Tapping a row or pin opens the lead's card (Call, Directions in
-Google Maps, Save as lead). A map wider than zoom 11 (`MIN_LEAD_ZOOM`) is not searched: the sheet says Zoom in (to 13).
-After a pan or zoom a **Search this area** pill re-runs the search. Nothing found / a failed search have their own sheet.
+Google Maps, Save as lead). **The rep is never asked to zoom** (owner, 2026-11-27: "why should the user zoom in?"; centre of the map, not their position):
+Places returns at most 20 places, so a map no wider than 10 miles searches what is on screen, and a wider one searches a
+**10-mile box around the map's centre** (`searchAreaFor`, `SEARCH_STEPS = [10, 25, 50]`, `boxAround`; `useLeadSearch.searchLeads`'s
+third argument is that box). The search bar's panel and the list's heading say which ("10 mi around the map centre" / "this map
+area"). **Search wider** (empty-result sheet, and the list's last row) fits the map to the next step (25, then 50 mi), searches
+there and stops being offered at 50. After a pan or zoom a **Search this area** pill re-runs the search. A failed search has its own sheet.
 Desktop and tablet keep `LeadSearchControl` and the Tools panel's Leads tab. **Never tried on a real iPhone** — check the
 keyboard with the bar, the sheet's handle drag and the pill; Directions here is plain Google Maps, not the planner's
 "Open in" choice.

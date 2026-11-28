@@ -4,17 +4,31 @@
 import { milesBetween } from '../../../utils/routePlan';
 import type { LatLng, Lead } from '../types';
 
-/** A search covers what is on the map and returns at most 20 places, so a map wider than a town leaves the best ones out. */
-export const MIN_LEAD_ZOOM = 11;
-/** What the Zoom in button zooms to: a few miles across on a phone. */
-export const ZOOM_IN_TO = 13;
+/** What a search may cover, in miles across: Places returns at most 20 places, so a wider area leaves the best ones out. */
+export const SEARCH_STEPS = [10, 25, 50];
 
-/** One step wider for "Zoom out and search again", never past what a search allows. */
-export const zoomOutTarget = (zoom: number): number => Math.max(MIN_LEAD_ZOOM, Math.round(zoom) - 1);
-/** False once the map is as wide as a search goes: zooming out further would only ask to zoom back in. */
-export const canZoomOut = (zoom: number | null | undefined): boolean => typeof zoom !== 'number' || Math.round(zoom) > MIN_LEAD_ZOOM;
+export type Box = { north: number; south: number; east: number; west: number };
 
-export const tooFarOut = (zoom: number | null | undefined): boolean => typeof zoom === 'number' && zoom < MIN_LEAD_ZOOM;
+/** A square `miles` across, centred on `center`. */
+export const boxAround = (center: LatLng, miles: number): Box => {
+    const half = miles / 2;
+    const dLat = half / 69;
+    const dLng = half / (69 * Math.max(0.01, Math.cos((center.lat * Math.PI) / 180)));
+    return { north: center.lat + dLat, south: center.lat - dLat, east: center.lng + dLng, west: center.lng - dLng };
+};
+
+/** What a search covers: the map on screen when it is no wider than the first step, else that step's box around the centre. */
+export const searchAreaFor = (view: { center: LatLng; widthMiles: number }): { miles: number; box: Box | null } => {
+    const first = SEARCH_STEPS[0];
+    if (Number.isFinite(view.widthMiles) && view.widthMiles <= first) return { miles: view.widthMiles, box: null };
+    return { miles: first, box: boxAround(view.center, first) };
+};
+
+/** The next step wider than what was searched, or null once it is the widest. */
+export const widerStep = (miles: number): number | null => SEARCH_STEPS.find((step) => step > miles + 0.5) ?? null;
+
+/** Under the list: where the search looked. */
+export const areaWords = (onScreen: boolean, miles: number): string => (onScreen ? 'this map area' : `${Math.round(miles)} mi around the map centre`);
 
 export type NumberedLead = { lead: Lead; n: number; miles: number };
 

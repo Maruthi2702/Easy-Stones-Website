@@ -43,9 +43,10 @@ export function useLeadSearch({ mapRef, currentUser, setLeadInfo, closeLeadInfo,
     // for a rectangle, so it asks for the shape's box and keeps what's inside.
     // Answers with what it found (null when the search itself failed), so the phone's
     // sheet can say "12 leads", "none" or "couldn't search" without reading state back.
-    const searchLeads = useCallback(async (queryText: string, area: SelectionShape | null = null): Promise<Lead[] | null> => {
+    const searchLeads = useCallback(async (queryText: string, area: SelectionShape | null = null, box?: google.maps.LatLngBoundsLiteral): Promise<Lead[] | null> => {
         if (!mapRef.current || !window.google?.maps) return null;
-        const bounds = area ? shapeBounds(area) : mapRef.current.getBounds();
+        // `box`: the phone's own area (a capped square around the map's centre) instead of the screen.
+        const bounds = box ?? (area ? shapeBounds(area) : mapRef.current.getBounds());
         if (!bounds) {
             setLeadError('The map is still loading — try again in a moment.');
             return null;

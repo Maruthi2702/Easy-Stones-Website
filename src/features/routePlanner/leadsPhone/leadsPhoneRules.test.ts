@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { canZoomOut, leadLine, leadsHeading, mapMoved, milesText, MIN_LEAD_ZOOM, orderByDistance, tooFarOut, typeText, zoomOutTarget } from './leadsPhoneRules.ts';
+import { areaWords, boxAround, leadLine, leadsHeading, mapMoved, milesText, orderByDistance, SEARCH_STEPS, searchAreaFor, typeText, widerStep } from './leadsPhoneRules.ts';
 import type { Lead } from '../types.ts';
 
 const lead = (name: string, lat: number, lng: number, types: string[] = [], city = ''): Lead => ({
@@ -7,16 +7,6 @@ const lead = (name: string, lat: number, lng: number, types: string[] = [], city
     addressParts: { street: '', city, state: '', zipCode: '' }
 });
 const centre = { lat: 47.6, lng: -122.3 };
-
-describe('tooFarOut', () => {
-    it('refuses a map wider than a town, and never a map whose zoom is unknown', () => {
-        expect(tooFarOut(MIN_LEAD_ZOOM - 1)).toBe(true);
-        expect(tooFarOut(MIN_LEAD_ZOOM)).toBe(false);
-        expect(tooFarOut(15)).toBe(false);
-        expect(tooFarOut(undefined)).toBe(false);
-        expect(tooFarOut(null)).toBe(false);
-    });
-});
 
 describe('orderByDistance', () => {
     it('numbers the leads nearest the map centre first', () => {
@@ -68,15 +58,28 @@ describe('mapMoved', () => {
     });
 });
 
-describe('zooming out', () => {
-    it('goes one step wider and never past the widest search', () => {
-        expect(zoomOutTarget(13)).toBe(12);
-        expect(zoomOutTarget(MIN_LEAD_ZOOM)).toBe(MIN_LEAD_ZOOM);
-        expect(zoomOutTarget(8)).toBe(MIN_LEAD_ZOOM);
+describe('the area a search covers', () => {
+    it('boxes a square of the asked width around a centre', () => {
+        const b = boxAround(centre, 10);
+        expect((b.north - b.south) * 69).toBeCloseTo(10, 1);
+        expect((b.east - b.west) * 69 * Math.cos((47.6 * Math.PI) / 180)).toBeCloseTo(10, 1);
+        expect((b.north + b.south) / 2).toBeCloseTo(47.6, 6);
     });
-    it('is offered only while there is room to go wider', () => {
-        expect(canZoomOut(13)).toBe(true);
-        expect(canZoomOut(MIN_LEAD_ZOOM)).toBe(false);
-        expect(canZoomOut(undefined)).toBe(true);
+    it('searches the screen when it is no wider than the first step, else that step around the centre', () => {
+        expect(searchAreaFor({ center: centre, widthMiles: 6 })).toEqual({ miles: 6, box: null });
+        const wide = searchAreaFor({ center: centre, widthMiles: 90 });
+        expect(wide.miles).toBe(SEARCH_STEPS[0]);
+        expect(wide.box).toEqual(boxAround(centre, SEARCH_STEPS[0]));
+        expect(searchAreaFor({ center: centre, widthMiles: Infinity }).box).not.toBeNull();
+    });
+    it('offers the next step wider, and nothing past the last', () => {
+        expect(widerStep(6)).toBe(10);
+        expect(widerStep(10)).toBe(25);
+        expect(widerStep(25)).toBe(50);
+        expect(widerStep(50)).toBeNull();
+    });
+    it('says where it looked', () => {
+        expect(areaWords(true, 6)).toBe('this map area');
+        expect(areaWords(false, 25)).toBe('25 mi around the map centre');
     });
 });

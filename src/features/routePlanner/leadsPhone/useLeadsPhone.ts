@@ -3,11 +3,12 @@ import type { MutableRefObject } from 'react';
 import { milesBetween } from '../../../utils/routePlan';
 import type { useLeadSearch } from '../useLeadSearch';
 import type { LatLng, Lead } from '../types';
-import { canZoomOut, mapMoved, orderByDistance, tooFarOut, zoomOutTarget, ZOOM_IN_TO } from './leadsPhoneRules';
+import { areaWords, boxAround, mapMoved, orderByDistance, SEARCH_STEPS, searchAreaFor, widerStep } from './leadsPhoneRules';
+import type { Box } from './leadsPhoneRules';
 import type { MapView, NumberedLead } from './leadsPhoneRules';
 
-/** What the sheet is saying: nothing yet, the leads, none found, the map is too wide, or the search failed. */
-export type LeadsPhase = 'typing' | 'results' | 'empty' | 'zoom' | 'error';
+/** What the sheet is saying: nothing yet, the leads, none found, or the search failed. */
+export type LeadsPhase = 'typing' | 'results' | 'empty' | 'error';
 
 /** What MapCanvas needs to draw the phone's results: numbers, the open one, and the saved ones (now customers). */
 export type LeadPinsView = { numberOf: Map<string, number>; selectedId: string | null; hiddenIds: Set<string> };
@@ -29,22 +30,20 @@ const viewOf = (map: google.maps.Map): MapView | null => {
     return { center, zoom, widthMiles };
 };
 
-/** The longest a zoom is waited for before the search runs anyway. */
-const ZOOM_WAIT_MS = 1500;
+/** The longest the map is waited for after Search wider fits it to the new area. */
+const FIT_WAIT_MS = 1500;
+/** Room left for the search bar above and the sheet below when the map is fitted. */
+const FIT_PADDING = { top: 90, bottom: 270, left: 24, right: 24 };
 
-/**
- * Sets the zoom and answers once the map has really arrived: the map's next "idle" can be one that
- * was already on its way, with the old zoom and bounds, so it keeps listening until the zoom
- * matches (or gives up after a moment and lets the search run on whatever is showing).
- */
-const settleZoom = (map: google.maps.Map, target: number): Promise<void> => new Promise((resolve) => {
-    if (Math.round(map.getZoom?.() ?? NaN) === target) { resolve(); return; }
+/** Fits the map to `box` and answers once it has settled (or after a moment). */
+const fitTo = (map: google.maps.Map, box: Box): Promise<void> => new Promise((resolve) => {
+    if (typeof map.fitBounds !== 'function' || typeof map.addListener !== 'function') { resolve(); return; }
     let done = false;
     let listener: google.maps.MapsEventListener | undefined;
     const finish = () => { if (done) return; done = true; listener?.remove?.(); clearTimeout(timer); resolve(); };
-    const timer = setTimeout(finish, ZOOM_WAIT_MS);
-    listener = map.addListener?.('idle', () => { if (Math.round(map.getZoom?.() ?? NaN) === target) finish(); });
-    map.setZoom(target);
+    const timer = setTimeout(finish, FIT_WAIT_MS);
+    listener = map.addListener('idle', finish);
+    map.fitBounds(box, FIT_PADDING);
 });
 
 /**
@@ -63,21 +62,21 @@ export function useLeadsPhone({ mapRef, leads }: { mapRef: MutableRefObject<goog
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [expanded, setExpanded] = useState(false);
     const [searchedAt, setSearchedAt] = useState<MapView | null>(null);
-    const [zoomedOut, setZoomedOut] = useState(false);
-    const [zoomOutOk, setZoomOutOk] = useState(true);
+    // How wide the map is now, and where the last search looked.
+    const [mapMiles, setMapMiles] = useState(0);
+    const [searched, setSearched] = useState<{ miles: number; onScreen: boolean } | null>(null);
     const [moved, setMoved] = useState(false);
     // A later search wins: an answer for an older one is dropped.
     const seq = useRef(0);
 
-    // Follow the map while the search is open: is it too wide to search, has it moved since the search ran.
+    // Follow the map while the search is open: how wide it is, has it moved since the search ran.
     useEffect(() => {
         const map = mapRef.current;
         if (!open || !map || typeof map.addListener !== 'function') return undefined;
         const check = () => {
             const view = viewOf(map);
             if (!view) return;
-            setZoomedOut(tooFarOut(view.zoom));
-        setZoomOutOk(canZoomOut(view.zoom));
+            setMapMiles(view.widthMiles);
             setMoved(searchedAt ? mapMoved(view, searchedAt) : false);
         };
         check();
@@ -85,40 +84,46 @@ export function useLeadsPhone({ mapRef, leads }: { mapRef: MutableRefObject<goog
         return () => listener?.remove?.();
     }, [open, mapRef, searchedAt]);
 
-    const run = useCallback(async (term?: string) => {
+    // `widerMiles`: Search wider — fit the map to that many miles around its centre and look there.
+    const run = useCallback(async (term?: string, widerMiles?: number) => {
         const q = (term ?? leads.leadQuery).trim();
         if (!q) return;
         if (term !== undefined) leads.setLeadQuery(term);
         const mine = ++seq.current;
         const map = mapRef.current;
-        const view = map ? viewOf(map) : null;
         setSelectedId(null);
         setExpanded(false);
-        if (view && tooFarOut(view.zoom)) { setResults([]); setSearchedAt(null); setPhase('zoom'); return; }
-        const found = await leads.searchLeads(q);
+        let view = map ? viewOf(map) : null;
+        let box: Box | null = null;
+        let miles = 0;
+        let onScreen = true;
+        if (view && widerMiles) {
+            box = boxAround(view.center, widerMiles);
+            miles = widerMiles;
+            onScreen = false;
+            await fitTo(map as google.maps.Map, box);
+            if (mine !== seq.current) return;
+            view = viewOf(map as google.maps.Map) ?? view;
+        } else if (view) {
+            const area = searchAreaFor(view);
+            box = area.box;
+            miles = area.miles;
+            onScreen = !area.box;
+        }
+        const found = await leads.searchLeads(q, null, box ?? undefined);
         if (mine !== seq.current) return;
         if (!found) { setPhase('error'); return; }
         const centre: LatLng | undefined = view?.center ?? found[0]?.coordinates;
         setResults(centre ? orderByDistance(found, centre) : []);
         setSavedIds(new Set());
-        setSearchedAt(view);
+        setSearched({ miles, onScreen });
+        setSearchedAt(view ? { ...view, widthMiles: Math.min(view.widthMiles, miles || view.widthMiles) } : null);
         setMoved(false);
         setPhase(found.length ? 'results' : 'empty');
     }, [leads, mapRef]);
 
-    // Zoom the map, wait until it has really got there, then search what it shows.
-    const zoomThenSearch = useCallback(async (zoomFor: (current: number) => number) => {
-        const map = mapRef.current;
-        const q = leads.leadQuery.trim();
-        if (!map || !q) return;
-        const mine = ++seq.current;
-        await settleZoom(map, zoomFor(map.getZoom?.() ?? ZOOM_IN_TO));
-        if (mine !== seq.current) return;
-        void run(q);
-    }, [leads.leadQuery, mapRef, run]);
-
-    const zoomIn = useCallback(() => zoomThenSearch(() => ZOOM_IN_TO), [zoomThenSearch]);
-    const zoomOut = useCallback(() => zoomThenSearch(zoomOutTarget), [zoomThenSearch]);
+    const nextStep = searched && searched.miles > 0 ? widerStep(searched.miles) : null;
+    const wider = useCallback(() => { if (nextStep) void run(leads.leadQuery, nextStep); }, [nextStep, run, leads.leadQuery]);
 
     const selectLead = useCallback((placeId: string) => {
         const row = results.find((r) => r.lead.placeId === placeId);
@@ -144,6 +149,7 @@ export function useLeadsPhone({ mapRef, leads }: { mapRef: MutableRefObject<goog
         setSelectedId(null);
         setExpanded(false);
         setSearchedAt(null);
+        setSearched(null);
         setMoved(false);
     }, []);
 
@@ -156,6 +162,7 @@ export function useLeadsPhone({ mapRef, leads }: { mapRef: MutableRefObject<goog
         setSelectedId(null);
         setExpanded(false);
         setSearchedAt(null);
+        setSearched(null);
         setMoved(false);
         leads.clearLeadResults();
     }, [leads]);
@@ -168,9 +175,13 @@ export function useLeadsPhone({ mapRef, leads }: { mapRef: MutableRefObject<goog
 
     const selected = useMemo(() => results.find((r) => r.lead.placeId === selectedId) ?? null, [results, selectedId]);
 
+    // What the search bar's panel says it will search: the screen, or the capped box around the centre.
+    const capped = mapMiles > SEARCH_STEPS[0];
+    const areaText = searched ? areaWords(searched.onScreen, searched.miles) : '';
+
     return {
-        open, phase, results, selected, savedIds, expanded, setExpanded, moved, zoomedOut, canZoomOut: zoomOutOk, pins,
-        begin, close, run, zoomIn, zoomOut, selectLead, backToList, save
+        open, phase, results, selected, savedIds, expanded, setExpanded, moved, capped, areaText, nextStep, pins,
+        begin, close, run, wider, selectLead, backToList, save
     };
 }
 

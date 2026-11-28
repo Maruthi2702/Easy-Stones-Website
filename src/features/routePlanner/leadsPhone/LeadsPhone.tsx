@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ChevronLeft, Clock, MapPin, Navigation, Phone, Plus, RefreshCw, Search, X, ZoomIn } from 'lucide-react';
-import { leadLine, leadsHeading, milesText, typeText } from './leadsPhoneRules';
+import { Check, ChevronLeft, Clock, MapPin, Navigation, Phone, Plus, RefreshCw, Search, X } from 'lucide-react';
+import { leadLine, leadsHeading, milesText, SEARCH_STEPS, typeText } from './leadsPhoneRules';
 import type { NumberedLead } from './leadsPhoneRules';
 import type { LeadsPhoneState } from './useLeadsPhone';
 import './LeadsPhone.css';
@@ -71,8 +71,7 @@ const LeadsPhone = ({ phone, query, onQueryChange, recent, onRemoveRecent, searc
 
     const pill = (() => {
         if (focused) return null;
-        if (phase === 'zoom') return phone.zoomedOut ? 'zoom' : 'search';
-        if (phase === 'results' && !selected && !expanded && phone.moved) return 'search';
+        if ((phase === 'results' || phase === 'empty') && !selected && !expanded && phone.moved) return 'search';
         return null;
     })();
 
@@ -101,7 +100,7 @@ const LeadsPhone = ({ phone, query, onQueryChange, recent, onRemoveRecent, searc
     const listSheet = (
         <>
             {handle}
-            <div className="lp-head"><b>{leadsHeading(results.length)}</b><span>{query.trim()} · this map area</span></div>
+            <div className="lp-head"><b>{leadsHeading(results.length)}</b><span>{query.trim()} · {phone.areaText}</span></div>
             <ul className="lp-list" style={{ overflowY: expanded ? 'auto' : 'hidden' }}>
                 {results.map((row) => (
                     <li key={row.lead.placeId} className="lp-row">
@@ -115,6 +114,11 @@ const LeadsPhone = ({ phone, query, onQueryChange, recent, onRemoveRecent, searc
                         {canSave && <SaveButton row={row} phone={phone} saving={saving} />}
                     </li>
                 ))}
+                {phone.nextStep && (
+                    <li className="lp-wider">
+                        <button type="button" onClick={phone.wider}>Not finding enough? Search wider · {phone.nextStep} mi</button>
+                    </li>
+                )}
             </ul>
         </>
     );
@@ -160,16 +164,12 @@ const LeadsPhone = ({ phone, query, onQueryChange, recent, onRemoveRecent, searc
             sheet = selected ? cardSheet : listSheet;
             if (!selected) sheetClass += expanded ? ' is-full' : ' is-peek';
         } else if (phase === 'empty') {
-            sheet = message(<Search size={24} aria-hidden="true" />, 'grey', `No “${query.trim()}” found here`, phone.canZoomOut ? 'Nothing matched in this part of the map. Try another word, or zoom out a little.' : 'Nothing matched in this part of the map, which is as wide as a search goes. Try another word, or move the map.', (
+            sheet = message(<Search size={24} aria-hidden="true" />, 'grey', `No “${query.trim()}” found here`, phone.nextStep ? 'Nothing matched in this part of the map. Try another word, or search a wider area.' : 'Nothing matched in this part of the map, and a search doesn’t go wider than this. Try another word, or move the map.', (
                 <>
                     <div className="lp-lab">Try instead</div>
                     <div className="lp-chips">{tryInstead.map((t) => <button key={t} type="button" className="lp-chip" onClick={() => phone.run(t)}>{t}</button>)}</div>
-                    {phone.canZoomOut && <button type="button" className="lp-btn lp-btn--gold" onClick={phone.zoomOut}>Zoom out and search again</button>}
+                    {phone.nextStep && <button type="button" className="lp-btn lp-btn--gold" onClick={phone.wider}>Search wider · {phone.nextStep} mi</button>}
                 </>
-            ));
-        } else if (phase === 'zoom') {
-            sheet = message(<ZoomIn size={24} aria-hidden="true" />, 'gold', 'Zoom in to find leads', 'Search covers the part of the map on screen, and shows up to 20 businesses. Zoom to a town or a few miles across so the best ones aren’t left out.', (
-                <button type="button" className="lp-btn lp-btn--gold" onClick={phone.zoomIn}><Plus size={18} aria-hidden="true" />Zoom in</button>
             ));
         } else if (phase === 'error') {
             sheet = message(<RefreshCw size={22} aria-hidden="true" />, 'grey', 'Couldn’t search this area', error || 'Check your connection and try again.', (
@@ -202,9 +202,9 @@ const LeadsPhone = ({ phone, query, onQueryChange, recent, onRemoveRecent, searc
 
             {focused && (
                 <div className="lp-panel" onMouseDown={(e) => e.preventDefault()}>
-                    <div className={`lp-scope${phone.zoomedOut ? ' is-warn' : ''}`}>
+                    <div className="lp-scope">
                         <MapPin size={18} aria-hidden="true" />
-                        <span>{phone.zoomedOut ? <>Zoom in closer to search <b>the map area on screen</b></> : <>Searching <b>the map area on screen</b></>}</span>
+                        <span>{phone.capped ? <>Searching <b>{SEARCH_STEPS[0]} mi around the map centre</b></> : <>Searching <b>the map area on screen</b></>}</span>
                     </div>
                     {shownRecent.length > 0 && <div className="lp-lab">Recent</div>}
                     {shownRecent.map((term) => (
@@ -217,7 +217,6 @@ const LeadsPhone = ({ phone, query, onQueryChange, recent, onRemoveRecent, searc
             )}
 
             {pill === 'search' && <button type="button" className="lp-pill" onClick={() => phone.run()}><RefreshCw size={18} aria-hidden="true" />Search this area</button>}
-            {pill === 'zoom' && <div className="lp-pill lp-pill--info" role="status"><ZoomIn size={18} aria-hidden="true" />Zoom in to search</div>}
 
             {sheet && <div className={sheetClass} role="region" aria-label="Lead search results">{sheet}</div>}
         </div>,

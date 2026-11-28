@@ -259,51 +259,55 @@ describe('Route Planner: Find new leads on a phone', () => {
     await searchFor('countertops');
     expect(screen.getByText('No “countertops” found here')).toBeTruthy();
     expect(screen.getByText('stone fabricator')).toBeTruthy();
-    expect(screen.getByText('Zoom out and search again')).toBeTruthy();
   });
 
-  it('asks to zoom in instead of searching a map wider than a town', async () => {
-    await openLeads();
+  // A map the fake can answer questions about: where its centre is and how wide it shows.
+  const mapShowing = (widthDeg: number) => {
     gm.map.getCenter = () => ({ lat: () => 47.6, lng: () => -122.3 });
-    gm.map.getZoom = () => 8;
-    await searchFor('countertops');
-    expect(screen.getByText('Zoom in to find leads')).toBeTruthy();
-    expect(searches.length).toBe(0);
-  });
+    gm.map.getZoom = () => 13;
+    gm.map.getBounds = () => ({ getNorthEast: () => ({ lat: () => 47.7, lng: () => -122.3 + widthDeg / 2 }), getSouthWest: () => ({ lat: () => 47.5, lng: () => -122.3 - widthDeg / 2 }) });
+  };
+  const milesAcross = (req: unknown) => {
+    const b = (req as { locationRestriction: { east: number; west: number } }).locationRestriction;
+    return (b.east - b.west) * 69 * Math.cos((47.6 * Math.PI) / 180);
+  };
 
-  it('Zoom in waits until the map has really zoomed, then searches what it shows', async () => {
+  it('never asks the rep to zoom: a map wider than 10 miles searches a 10 mile box around its centre', async () => {
     placesAnswer = [place('p1', 'Near Stone', 47.601, -122.3)];
     await openLeads();
-    let zoom = 8;
-    gm.map.getCenter = () => ({ lat: () => 47.6, lng: () => -122.3 });
-    gm.map.getZoom = () => zoom;
-    // The map takes a moment to arrive, and an idle that was already on its way fires first at the old zoom.
-    gm.map.setZoom = (z: number) => { setTimeout(() => { zoom = z; gm.map.listeners.idle?.slice().forEach((fn: () => void) => fn()); }, 30); };
+    mapShowing(1.5);
     await searchFor('countertops');
-    expect(screen.getByText('Zoom in to find leads')).toBeTruthy();
-    fireEvent.click(screen.getByText('Zoom in'));
-    await settle();
-    expect(zoom).toBe(13);
+    expect(screen.queryByText(/Zoom in/)).toBeNull();
     expect(searches.length).toBe(1);
+    expect(milesAcross(searches[0])).toBeCloseTo(10, 0);
     expect(screen.getByText('1 lead')).toBeTruthy();
+    expect(screen.getByText('countertops · 10 mi around the map centre')).toBeTruthy();
   });
 
-  it('offers Zoom out only while the map can still go wider, and never past the widest search', async () => {
+  it('a map no wider than 10 miles searches what is on screen', async () => {
+    placesAnswer = [place('p1', 'Near Stone', 47.601, -122.3)];
     await openLeads();
-    let zoom = 13;
-    gm.map.getCenter = () => ({ lat: () => 47.6, lng: () => -122.3 });
-    gm.map.getZoom = () => zoom;
-    gm.map.setZoom = (z: number) => { setTimeout(() => { zoom = z; gm.map.listeners.idle?.slice().forEach((fn: () => void) => fn()); }, 0); };
+    mapShowing(0.08);
     await searchFor('countertops');
-    fireEvent.click(screen.getByText('Zoom out and search again'));
+    expect(screen.getByText('countertops · this map area')).toBeTruthy();
+  });
+
+  it('Search wider fits the map to 25 miles, searches there, and stops offering at 50', async () => {
+    placesAnswer = [place('p1', 'Near Stone', 47.601, -122.3)];
+    await openLeads();
+    mapShowing(1.5);
+    const fits: unknown[] = [];
+    gm.map.fitBounds = (box: unknown) => { fits.push(box); };
+    await searchFor('countertops');
+    fireEvent.click(screen.getByText('Not finding enough? Search wider · 25 mi'));
     await settle();
-    expect(zoom).toBe(12);
+    expect(fits.length).toBe(1);
     expect(searches.length).toBe(2);
-    fireEvent.click(screen.getByText('Zoom out and search again'));
+    expect(milesAcross(searches[1])).toBeCloseTo(25, 0);
+    fireEvent.click(screen.getByText('Not finding enough? Search wider · 50 mi'));
     await settle();
-    expect(zoom).toBe(11);
-    expect(screen.queryByText('Zoom out and search again')).toBeNull();
-    expect(screen.queryByText('Zoom in to find leads')).toBeNull();
+    expect(milesAcross(searches[2])).toBeCloseTo(50, 0);
+    expect(screen.queryByText(/Search wider/)).toBeNull();
   });
 
   it('✕ closes it and takes the pins off the map', async () => {
